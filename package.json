@@ -16,6 +16,7 @@
     "@payloadcms/db-postgres": "^3.88.0",
     "@payloadcms/next": "^3.88.0",
     "@payloadcms/richtext-lexical": "^3.88.0",
+    "@vercel/analytics": "^2.0.1",
     "graphql": "^16.14.2",
     "mcp-handler": "^1.0.4",
     "next": "^16.3.4",
