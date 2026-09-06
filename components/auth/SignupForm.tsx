@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { signupAction, type AuthState } from "@/lib/auth-actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const initialState: AuthState = { error: null };
 
@@ -11,31 +14,34 @@ export function SignupForm({ redirectTo }: { redirectTo?: string }) {
   const loginHref = redirectTo ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login";
 
   return (
-    <div style={{ maxWidth: 420 }}>
-      <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div>
+      <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="redirectTo" value={redirectTo ?? ""} />
-        <label>
-          Email
-          <input type="email" name="email" required autoComplete="email" style={{ display: "block", width: "100%" }} />
-        </label>
-        <label>
-          Password
-          <input
+        <div className="grid gap-2">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" name="email" required autoComplete="email" />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
             type="password"
             name="password"
             required
             minLength={8}
             autoComplete="new-password"
-            style={{ display: "block", width: "100%" }}
           />
-        </label>
-        {state.error && <p style={{ color: "crimson" }}>{state.error}</p>}
-        <button type="submit" disabled={pending}>
+        </div>
+        {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+        <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Please wait…" : "Create account"}
-        </button>
+        </Button>
       </form>
-      <p style={{ fontSize: 13, marginTop: 12 }}>
-        Already have an account? <Link href={loginHref}>Log in</Link>
+      <p className="mt-4 text-center text-sm text-muted-foreground">
+        Already have an account?{" "}
+        <Link href={loginHref} className="font-medium text-foreground underline underline-offset-4">
+          Log in
+        </Link>
       </p>
     </div>
   );
