@@ -90,8 +90,10 @@ Everywhere else (Server Actions, pages, components), prefer the `@/` alias.
 
 ## Deployment
 
-- Single production deploy on Vercel. Env vars: `DATABASE_URI` (Postgres, e.g. via
-  Vercel Marketplace/Neon), `PAYLOAD_SECRET`, `ENCRYPTION_KEY` (32-byte hex —
+- Single production deploy on Vercel. Env vars: `DATABASE_URL` (Postgres, provisioned
+  via Vercel Marketplace/Neon — Neon's integration also creates a separate branch +
+  `DATABASE_URL` per environment, so Production and Preview never share a database),
+  `PAYLOAD_SECRET`, `ENCRYPTION_KEY` (32-byte hex —
   `openssl rand -hex 32`), plus the legacy single-site `WP_SITE_URL`/`WP_USERNAME`/
   `WP_APP_PASSWORD` fallback vars (see `.env.local.example`).
 - Changing an MCP route's URL breaks any already-registered ChatGPT connector —
