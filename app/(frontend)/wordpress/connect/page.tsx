@@ -1,23 +1,19 @@
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
+import { logoutAction } from "@/lib/auth-actions";
 import { getOrganisationMembers, getUserOrganisation } from "@/lib/organisation";
 import { ApiKeyPanel } from "@/modules/wordpress/ApiKeyPanel";
-import { AuthForm } from "@/modules/wordpress/AuthForm";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
-import { logoutAction } from "@/modules/wordpress/actions";
 import { MembersPanel } from "@/modules/wordpress/MembersPanel";
 import { getWordPressConnection } from "@/modules/wordpress/organisation";
+
+const CONNECT_PATH = "/wordpress/connect";
 
 export default async function ConnectPage() {
   const user = await getCurrentUser();
 
   if (!user) {
-    return (
-      <main style={{ padding: 24 }}>
-        <h1>Connect your WordPress site</h1>
-        <p>Log in or create an account to connect your WordPress site and get an API key for ChatGPT.</p>
-        <AuthForm />
-      </main>
-    );
+    redirect(`/login?redirectTo=${encodeURIComponent(CONNECT_PATH)}`);
   }
 
   const organisation = await getUserOrganisation(user.id);
@@ -28,6 +24,7 @@ export default async function ConnectPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Connect your WordPress site</h1>
         <form action={logoutAction}>
+          <input type="hidden" name="redirectTo" value={CONNECT_PATH} />
           <button type="submit">Log out ({user.email})</button>
         </form>
       </div>

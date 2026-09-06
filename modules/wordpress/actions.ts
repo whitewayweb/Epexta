@@ -1,10 +1,9 @@
 "use server";
 
 import crypto from "crypto";
-import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getPayloadClient } from "@/lib/payload";
-import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/lib/session";
+import { getCurrentUser } from "@/lib/session";
 import {
   addOrganisationMember,
   createOrganisationForUser,
@@ -12,10 +11,6 @@ import {
   removeOrganisationMember,
 } from "@/lib/organisation";
 import { saveWordPressConnection } from "./organisation";
-
-export interface AuthState {
-  error: string | null;
-}
 
 export interface ConnectionState {
   error: string | null;
@@ -32,11 +27,6 @@ export interface MemberActionState {
   success: boolean;
 }
 
-const credentialsSchema = z.object({
-  email: z.string().trim().min(1, "Email is required.").email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-});
-
 const connectionSchema = z.object({
   siteUrl: z
     .string()
@@ -52,118 +42,8 @@ const inviteSchema = z.object({
   email: z.string().trim().min(1, "Email is required.").email("Enter a valid email address."),
 });
 
-const signupAndConnectSchema = credentialsSchema.extend({
-  orgName: z.string().trim().min(1, "Organisation name is required."),
-  siteUrl: connectionSchema.shape.siteUrl,
-  username: connectionSchema.shape.username,
-  appPassword: connectionSchema.shape.appPassword,
-});
-
 function firstIssueMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid input.";
-}
-
-export async function signupAction(_prevState: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = credentialsSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
-  if (!parsed.success) {
-    return { error: firstIssueMessage(parsed.error) };
-  }
-  const { email, password } = parsed.data;
-
-  const payload = await getPayloadClient();
-  try {
-    await payload.create({ collection: "users", data: { email, password } });
-  } catch {
-    return { error: "Could not create an account with that email." };
-  }
-
-  const result = await payload.login({ collection: "users", data: { email, password } });
-  if (!result.token) {
-    return { error: "Account created, but automatic login failed. Please log in." };
-  }
-  await setSessionCookie(result.token, result.exp);
-  redirect("/wordpress/connect");
-}
-
-/** Creates an account, a new organisation for it, and its WordPress connection in one step. */
-export async function signupAndConnectAction(
-  _prevState: ConnectionState,
-  formData: FormData
-): Promise<ConnectionState> {
-  const parsed = signupAndConnectSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-    orgName: formData.get("orgName"),
-    siteUrl: formData.get("siteUrl"),
-    username: formData.get("username"),
-    appPassword: formData.get("appPassword"),
-  });
-  if (!parsed.success) {
-    return { error: firstIssueMessage(parsed.error), success: false };
-  }
-  const { email, password, orgName, siteUrl, username, appPassword } = parsed.data;
-
-  const payload = await getPayloadClient();
-  try {
-    await payload.create({ collection: "users", data: { email, password } });
-  } catch {
-    return { error: "Could not create an account with that email.", success: false };
-  }
-
-  const loginResult = await payload.login({ collection: "users", data: { email, password } });
-  if (!loginResult.token) {
-    return { error: "Account created, but automatic login failed. Please log in.", success: false };
-  }
-  await setSessionCookie(loginResult.token, loginResult.exp);
-
-  const user = await getCurrentUser();
-  if (!user) {
-    return { error: "Account created, but session setup failed. Please log in.", success: false };
-  }
-
-  const organisationId = await createOrganisationForUser(user.id, orgName);
-
-  try {
-    await saveWordPressConnection(organisationId, { siteUrl, username, appPassword });
-  } catch {
-    return {
-      error: "Account created, but the WordPress connection failed. Check the site URL and try again.",
-      success: false,
-    };
-  }
-
-  redirect("/wordpress/connect");
-}
-
-export async function loginAction(_prevState: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = credentialsSchema.safeParse({
-    email: formData.get("email"),
-    password: formData.get("password"),
-  });
-  if (!parsed.success) {
-    return { error: firstIssueMessage(parsed.error) };
-  }
-  const { email, password } = parsed.data;
-
-  const payload = await getPayloadClient();
-  try {
-    const result = await payload.login({ collection: "users", data: { email, password } });
-    if (!result.token) {
-      return { error: "Invalid email or password." };
-    }
-    await setSessionCookie(result.token, result.exp);
-  } catch {
-    return { error: "Invalid email or password." };
-  }
-  redirect("/wordpress/connect");
-}
-
-export async function logoutAction(): Promise<void> {
-  await clearSessionCookie();
-  redirect("/wordpress/connect");
 }
 
 export async function saveConnectionAction(

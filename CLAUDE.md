@@ -7,9 +7,14 @@ See [plan.md](plan.md) for the phased roadmap.
 ## Architecture: platform vs. modules
 
 - `lib/` — platform code shared by every module: `payload.ts` (Payload client),
-  `session.ts` (cookie/auth), `members.ts` + `organisation.ts` (generic organisation/
-  membership model), `crypto.ts` (AES-256-GCM for secrets at rest), `modules.ts`
-  (module registry).
+  `session.ts` (cookie/auth), `auth-actions.ts` (login/signup/logout Server Actions —
+  account creation is a platform concern, not a module one), `members.ts` +
+  `organisation.ts` (generic organisation/membership model), `crypto.ts` (AES-256-GCM
+  for secrets at rest), `modules.ts` (module registry).
+- `components/auth/` — the platform-wide `LoginForm`/`SignupForm` used by
+  `/login` and `/signup`. Modules never render their own login/signup UI; they
+  redirect unauthenticated visitors to `/login?redirectTo=<module path>` (see
+  `app/(frontend)/wordpress/connect/page.tsx`) and get the user back afterwards.
 - `collections/` — **only** truly platform-wide Payload collections (`Users`,
   `Organisations`). Never put a module-specific collection here.
 - `modules/<name>/` — everything specific to one integration: its own Payload
@@ -27,6 +32,15 @@ See [plan.md](plan.md) for the phased roadmap.
 - Payload's own REST API lives at `/api/cms/*` (`app/api/cms/[...slug]/route.ts`).
 - Payload's admin panel is `/admin`.
 - Each module's onboarding UI is `/<name>/connect`.
+- Auth is platform-level, not module-level: `/login` and `/signup`
+  (`app/(frontend)/login`, `app/(frontend)/signup`) are the only account
+  creation/sign-in pages in the app. A module's `/<name>/connect` page redirects an
+  anonymous visitor to `/login?redirectTo=/<name>/connect` (or `/signup?redirectTo=...`)
+  instead of rendering its own auth form, so the user lands back on that module's
+  connect page — with its WordPress-credential fields, for example — right after
+  authenticating. Both `loginAction`/`signupAction` (`lib/auth-actions.ts`) only ever
+  redirect to a same-site `redirectTo` value (rejecting anything not starting with a
+  single `/`), to avoid an open redirect.
 
 ## Role model — three distinct levels, do not conflate them
 
@@ -40,7 +54,7 @@ See [plan.md](plan.md) for the phased roadmap.
    against the organisation's connection, but cannot see or edit the connection,
    cannot manage other members.
 
-Never let a public signup (`modules/*/actions.ts` `signupAction`) set its own role —
+Never let a public signup (`lib/auth-actions.ts` `signupAction`) set its own role —
 `Users.ts`'s `beforeChange` hook forces `customer` unless the creating request is
 already an authenticated superadmin. The very first user ever created becomes
 `superadmin` automatically (bootstrap case).
@@ -71,8 +85,9 @@ already an authenticated superadmin. The very first user ever created becomes
 - Never import `lib/payload.ts`, `lib/crypto.ts`, or any module's Payload-touching
   code into a `"use client"` component at runtime. Type-only imports
   (`import type { ... }`) are fine — they're erased at compile time.
-- All mutations from client components go through `"use server"` action files
-  (`modules/<name>/actions.ts`), invoked via `useActionState`, never via a
+- All mutations from client components go through `"use server"` action files —
+  `lib/auth-actions.ts` for login/signup/logout, `modules/<name>/actions.ts` for
+  everything module-specific — invoked via `useActionState`, never via a
   hand-rolled `fetch` to a REST endpoint from client code.
 
 ## Dev workflow
