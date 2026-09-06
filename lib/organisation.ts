@@ -26,11 +26,11 @@ export async function getUserOrganisation(userId: string): Promise<OrganisationM
 }
 
 /** Creates a new organisation with this user as its sole admin. */
-export async function createOrganisationForUser(userId: string): Promise<string> {
+export async function createOrganisationForUser(userId: string, name?: string): Promise<string> {
   const payload = await getPayloadClient();
   const doc = await payload.create({
     collection: "organisations",
-    data: { members: [{ user: Number(userId), role: "admin" }] },
+    data: { name, members: [{ user: Number(userId), role: "admin" }] },
     overrideAccess: true,
   });
   return String(doc.id);
