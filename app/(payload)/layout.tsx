@@ -4,6 +4,8 @@ import type { ServerFunctionClient } from "payload";
 import type React from "react";
 import { importMap } from "./importMap.js";
 
+import "@payloadcms/next/css";
+
 type Args = {
   children: React.ReactNode;
 };
