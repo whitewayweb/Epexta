@@ -6,11 +6,11 @@ export interface WordPressConnection {
   username: string;
 }
 
-export async function getWordPressConnection(tenantId: string): Promise<WordPressConnection | null> {
+export async function getWordPressConnection(organisationId: string): Promise<WordPressConnection | null> {
   const payload = await getPayloadClient();
   const result = await payload.find({
     collection: "wordpress-connections",
-    where: { tenant: { equals: tenantId } },
+    where: { organisation: { equals: organisationId } },
     limit: 1,
     overrideAccess: true,
   });
@@ -22,11 +22,11 @@ export async function getWordPressConnection(tenantId: string): Promise<WordPres
 }
 
 export async function saveWordPressConnection(
-  tenantId: string,
+  organisationId: string,
   data: { siteUrl: string; username: string; appPassword: string }
 ): Promise<void> {
   const payload = await getPayloadClient();
-  const existing = await getWordPressConnection(tenantId);
+  const existing = await getWordPressConnection(organisationId);
 
   if (existing) {
     await payload.update({
@@ -38,7 +38,7 @@ export async function saveWordPressConnection(
   } else {
     await payload.create({
       collection: "wordpress-connections",
-      data: { ...data, tenant: tenantId },
+      data: { ...data, organisation: organisationId },
       overrideAccess: true,
     });
   }

@@ -1,13 +1,13 @@
 import type { CollectionConfig, PayloadRequest } from "payload";
 import { decrypt, encrypt } from "../../lib/crypto";
-import { findMember, type MemberRow, type TenantRole } from "../../lib/members";
+import { findMember, type MemberRow, type OrganisationRole } from "../../lib/members";
 
-async function tenantRoleForRequest(
+async function organisationRoleForRequest(
   req: PayloadRequest
-): Promise<{ tenantId: string; role: TenantRole } | null> {
+): Promise<{ organisationId: string; role: OrganisationRole } | null> {
   if (!req.user) return null;
   const result = await req.payload.find({
-    collection: "tenants",
+    collection: "organisations",
     where: { "members.user": { equals: req.user.id } },
     limit: 1,
     overrideAccess: true,
@@ -19,35 +19,35 @@ async function tenantRoleForRequest(
   const member = findMember((doc.members ?? []) as MemberRow[], String(req.user.id));
   if (!member) return null;
 
-  return { tenantId: String(doc.id), role: member.role };
+  return { organisationId: String(doc.id), role: member.role };
 }
 
 export const WordPressConnections: CollectionConfig = {
   slug: "wordpress-connections",
   admin: {
     useAsTitle: "siteUrl",
-    description: "One WordPress site per tenant.",
+    description: "One WordPress site per organisation.",
   },
   access: {
     read: async ({ req }) => {
-      const ctx = await tenantRoleForRequest(req);
-      return ctx ? { tenant: { equals: ctx.tenantId } } : false;
+      const ctx = await organisationRoleForRequest(req);
+      return ctx ? { organisation: { equals: ctx.organisationId } } : false;
     },
     create: ({ req }) => Boolean(req.user),
     update: async ({ req }) => {
-      const ctx = await tenantRoleForRequest(req);
-      return ctx?.role === "admin" ? { tenant: { equals: ctx.tenantId } } : false;
+      const ctx = await organisationRoleForRequest(req);
+      return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
     },
     delete: async ({ req }) => {
-      const ctx = await tenantRoleForRequest(req);
-      return ctx?.role === "admin" ? { tenant: { equals: ctx.tenantId } } : false;
+      const ctx = await organisationRoleForRequest(req);
+      return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
     },
   },
   fields: [
     {
-      name: "tenant",
+      name: "organisation",
       type: "relationship",
-      relationTo: "tenants",
+      relationTo: "organisations",
       required: true,
       unique: true,
       admin: { position: "sidebar" },

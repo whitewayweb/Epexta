@@ -1,11 +1,11 @@
 import { getCurrentUser } from "@/lib/session";
-import { getTenantMembers, getUserTenant } from "@/lib/tenant";
+import { getOrganisationMembers, getUserOrganisation } from "@/lib/organisation";
 import { ApiKeyPanel } from "@/modules/wordpress/ApiKeyPanel";
 import { AuthForm } from "@/modules/wordpress/AuthForm";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
 import { logoutAction } from "@/modules/wordpress/actions";
 import { MembersPanel } from "@/modules/wordpress/MembersPanel";
-import { getWordPressConnection } from "@/modules/wordpress/tenant";
+import { getWordPressConnection } from "@/modules/wordpress/organisation";
 
 export default async function ConnectPage() {
   const user = await getCurrentUser();
@@ -20,8 +20,8 @@ export default async function ConnectPage() {
     );
   }
 
-  const tenant = await getUserTenant(user.id);
-  const connection = tenant ? await getWordPressConnection(tenant.tenantId) : null;
+  const organisation = await getUserOrganisation(user.id);
+  const connection = organisation ? await getWordPressConnection(organisation.organisationId) : null;
 
   return (
     <main style={{ padding: 24, display: "flex", flexDirection: "column", gap: 32 }}>
@@ -32,14 +32,14 @@ export default async function ConnectPage() {
         </form>
       </div>
 
-      {!tenant && (
+      {!organisation && (
         <section>
           <p>You don&apos;t have a WordPress site connected yet. Add one below — you&apos;ll become its admin.</p>
           <ConnectionForm siteUrl="" username="" />
         </section>
       )}
 
-      {tenant && tenant.role === "admin" && (
+      {organisation && organisation.role === "admin" && (
         <>
           <section>
             <h2>Connection</h2>
@@ -47,21 +47,21 @@ export default async function ConnectPage() {
           </section>
           <section>
             <h2>Members</h2>
-            <MembersPanel members={await getTenantMembers(tenant.tenantId)} />
+            <MembersPanel members={await getOrganisationMembers(organisation.organisationId)} />
           </section>
         </>
       )}
 
-      {tenant && tenant.role === "member" && (
+      {organisation && organisation.role === "member" && (
         <section>
           <h2>Connection</h2>
           {connection ? (
             <p>
-              Connected to <strong>{connection.siteUrl}</strong>. Only the tenant admin can change the site or
+              Connected to <strong>{connection.siteUrl}</strong>. Only the organisation admin can change the site or
               Application Password.
             </p>
           ) : (
-            <p>Your tenant admin hasn&apos;t connected a WordPress site yet.</p>
+            <p>Your organisation admin hasn&apos;t connected a WordPress site yet.</p>
           )}
         </section>
       )}

@@ -1,14 +1,14 @@
 import type { CollectionConfig, PayloadRequest } from "payload";
-import { hasRole, TENANT_ROLES, type MemberRow } from "../lib/members";
+import { hasRole, ORGANISATION_ROLES, type MemberRow } from "../lib/members";
 
-async function isTenantAdmin(req: PayloadRequest, id: string | number | undefined): Promise<boolean> {
+async function isOrganisationAdmin(req: PayloadRequest, id: string | number | undefined): Promise<boolean> {
   if (!req.user || !id) return false;
-  const doc = await req.payload.findByID({ collection: "tenants", id, overrideAccess: true }).catch(() => null);
+  const doc = await req.payload.findByID({ collection: "organisations", id, overrideAccess: true }).catch(() => null);
   return hasRole((doc as { members?: MemberRow[] } | null)?.members, String(req.user.id), "admin");
 }
 
-export const Tenants: CollectionConfig = {
-  slug: "tenants",
+export const Organisations: CollectionConfig = {
+  slug: "organisations",
   admin: {
     useAsTitle: "name",
     description: "A team/account. Any module (WordPress, future integrations) attaches to one of these.",
@@ -16,8 +16,8 @@ export const Tenants: CollectionConfig = {
   access: {
     read: ({ req }) => (req.user ? { "members.user": { equals: req.user.id } } : false),
     create: ({ req }) => Boolean(req.user),
-    update: ({ req, id }) => isTenantAdmin(req, id),
-    delete: ({ req, id }) => isTenantAdmin(req, id),
+    update: ({ req, id }) => isOrganisationAdmin(req, id),
+    delete: ({ req, id }) => isOrganisationAdmin(req, id),
   },
   hooks: {
     beforeChange: [
@@ -49,7 +49,7 @@ export const Tenants: CollectionConfig = {
         {
           name: "role",
           type: "select",
-          options: [...TENANT_ROLES],
+          options: [...ORGANISATION_ROLES],
           defaultValue: "member",
           required: true,
         },

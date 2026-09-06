@@ -5,8 +5,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getPayloadClient } from "@/lib/payload";
 import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/lib/session";
-import { addTenantMember, createTenantForUser, getUserTenant, removeTenantMember } from "@/lib/tenant";
-import { saveWordPressConnection } from "./tenant";
+import {
+  addOrganisationMember,
+  createOrganisationForUser,
+  getUserOrganisation,
+  removeOrganisationMember,
+} from "@/lib/organisation";
+import { saveWordPressConnection } from "./organisation";
 
 export interface AuthState {
   error: string | null;
@@ -122,17 +127,17 @@ export async function saveConnectionAction(
     return { error: firstIssueMessage(parsed.error), success: false };
   }
 
-  let tenant = await getUserTenant(user.id);
-  if (tenant && tenant.role !== "admin") {
-    return { error: "Only tenant admins can edit the connection.", success: false };
+  let organisation = await getUserOrganisation(user.id);
+  if (organisation && organisation.role !== "admin") {
+    return { error: "Only organisation admins can edit the connection.", success: false };
   }
-  if (!tenant) {
-    const tenantId = await createTenantForUser(user.id);
-    tenant = { tenantId, role: "admin" };
+  if (!organisation) {
+    const organisationId = await createOrganisationForUser(user.id);
+    organisation = { organisationId, role: "admin" };
   }
 
   try {
-    await saveWordPressConnection(tenant.tenantId, parsed.data);
+    await saveWordPressConnection(organisation.organisationId, parsed.data);
   } catch {
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
@@ -170,9 +175,9 @@ export async function inviteMemberAction(
     return { error: "You must be logged in.", success: false };
   }
 
-  const tenant = await getUserTenant(user.id);
-  if (!tenant || tenant.role !== "admin") {
-    return { error: "Only tenant admins can invite members.", success: false };
+  const organisation = await getUserOrganisation(user.id);
+  if (!organisation || organisation.role !== "admin") {
+    return { error: "Only organisation admins can invite members.", success: false };
   }
 
   const parsed = inviteSchema.safeParse({ email: formData.get("email") });
@@ -192,7 +197,7 @@ export async function inviteMemberAction(
     return { error: "That person needs to sign up for an account first.", success: false };
   }
 
-  const result = await addTenantMember(tenant.tenantId, String(invitedUser.id), "member");
+  const result = await addOrganisationMember(organisation.organisationId, String(invitedUser.id), "member");
   return { error: result.error ?? null, success: result.ok };
 }
 
@@ -205,9 +210,9 @@ export async function removeMemberAction(
     return { error: "You must be logged in.", success: false };
   }
 
-  const tenant = await getUserTenant(user.id);
-  if (!tenant || tenant.role !== "admin") {
-    return { error: "Only tenant admins can remove members.", success: false };
+  const organisation = await getUserOrganisation(user.id);
+  if (!organisation || organisation.role !== "admin") {
+    return { error: "Only organisation admins can remove members.", success: false };
   }
 
   const targetUserId = String(formData.get("userId") ?? "");
@@ -215,6 +220,6 @@ export async function removeMemberAction(
     return { error: "Missing member.", success: false };
   }
 
-  const result = await removeTenantMember(tenant.tenantId, targetUserId);
+  const result = await removeOrganisationMember(organisation.organisationId, targetUserId);
   return { error: result.error ?? null, success: result.ok };
 }

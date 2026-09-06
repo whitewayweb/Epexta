@@ -1,6 +1,6 @@
 "use client";
 
-import type { PopulatedMember } from "@/lib/tenant";
+import type { PopulatedMember } from "@/lib/organisation";
 import { useActionState } from "react";
 import { inviteMemberAction, removeMemberAction, type MemberActionState } from "./actions";
 

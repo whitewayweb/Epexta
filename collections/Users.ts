@@ -9,8 +9,8 @@ export const Users: CollectionConfig = {
     useAsTitle: "email",
   },
   access: {
-    // Only superadmins may open the /admin panel at all. Customers (tenant users
-    // who connect their own WordPress site via /connect) authenticate the same
+    // Only superadmins may open the /admin panel at all. Customers (organisation
+    // users who connect their own WordPress site via /connect) authenticate the same
     // way, but are blocked from the admin UI entirely.
     admin: ({ req: { user } }) => user?.role === "superadmin",
   },

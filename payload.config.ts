@@ -4,7 +4,7 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
-import { Tenants } from "./collections/Tenants";
+import { Organisations } from "./collections/Organisations";
 import { Users } from "./collections/Users";
 import { WordPressConnections } from "./modules/wordpress/collection";
 
@@ -18,7 +18,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Tenants, WordPressConnections],
+  collections: [Users, Organisations, WordPressConnections],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {

@@ -1,16 +1,16 @@
-import { findMember, memberUserId, type MemberRow, type TenantRole } from "./members";
+import { findMember, memberUserId, type MemberRow, type OrganisationRole } from "./members";
 import { getPayloadClient } from "./payload";
 
-export interface TenantMembership {
-  tenantId: string;
-  role: TenantRole;
+export interface OrganisationMembership {
+  organisationId: string;
+  role: OrganisationRole;
 }
 
-/** The tenant (if any) that this user belongs to, and their role in it. */
-export async function getUserTenant(userId: string): Promise<TenantMembership | null> {
+/** The organisation (if any) that this user belongs to, and their role in it. */
+export async function getUserOrganisation(userId: string): Promise<OrganisationMembership | null> {
   const payload = await getPayloadClient();
   const result = await payload.find({
-    collection: "tenants",
+    collection: "organisations",
     where: { "members.user": { equals: userId } },
     limit: 1,
     overrideAccess: true,
@@ -22,14 +22,14 @@ export async function getUserTenant(userId: string): Promise<TenantMembership | 
   const member = findMember((doc.members ?? []) as MemberRow[], userId);
   if (!member) return null;
 
-  return { tenantId: String(doc.id), role: member.role };
+  return { organisationId: String(doc.id), role: member.role };
 }
 
-/** Creates a new tenant with this user as its sole admin. */
-export async function createTenantForUser(userId: string): Promise<string> {
+/** Creates a new organisation with this user as its sole admin. */
+export async function createOrganisationForUser(userId: string): Promise<string> {
   const payload = await getPayloadClient();
   const doc = await payload.create({
-    collection: "tenants",
+    collection: "organisations",
     data: { members: [{ user: userId, role: "admin" }] },
     overrideAccess: true,
   });
@@ -39,14 +39,14 @@ export async function createTenantForUser(userId: string): Promise<string> {
 export interface PopulatedMember {
   userId: string;
   email: string;
-  role: TenantRole;
+  role: OrganisationRole;
 }
 
-export async function getTenantMembers(tenantId: string): Promise<PopulatedMember[]> {
+export async function getOrganisationMembers(organisationId: string): Promise<PopulatedMember[]> {
   const payload = await getPayloadClient();
   const doc = await payload.findByID({
-    collection: "tenants",
-    id: tenantId,
+    collection: "organisations",
+    id: organisationId,
     depth: 1,
     overrideAccess: true,
   });
@@ -59,13 +59,13 @@ export async function getTenantMembers(tenantId: string): Promise<PopulatedMembe
   }));
 }
 
-export async function addTenantMember(
-  tenantId: string,
+export async function addOrganisationMember(
+  organisationId: string,
   userId: string,
-  role: TenantRole
+  role: OrganisationRole
 ): Promise<{ ok: boolean; error?: string }> {
   const payload = await getPayloadClient();
-  const doc = await payload.findByID({ collection: "tenants", id: tenantId, overrideAccess: true });
+  const doc = await payload.findByID({ collection: "organisations", id: organisationId, overrideAccess: true });
   const members = (doc.members ?? []) as MemberRow[];
 
   if (findMember(members, userId)) {
@@ -73,30 +73,30 @@ export async function addTenantMember(
   }
 
   await payload.update({
-    collection: "tenants",
-    id: tenantId,
+    collection: "organisations",
+    id: organisationId,
     data: { members: [...members, { user: userId, role }] },
     overrideAccess: true,
   });
   return { ok: true };
 }
 
-export async function removeTenantMember(
-  tenantId: string,
+export async function removeOrganisationMember(
+  organisationId: string,
   userId: string
 ): Promise<{ ok: boolean; error?: string }> {
   const payload = await getPayloadClient();
-  const doc = await payload.findByID({ collection: "tenants", id: tenantId, overrideAccess: true });
+  const doc = await payload.findByID({ collection: "organisations", id: organisationId, overrideAccess: true });
   const members = (doc.members ?? []) as MemberRow[];
   const remaining = members.filter((m) => memberUserId(m) !== userId);
 
   if (!remaining.some((m) => m.role === "admin")) {
-    return { ok: false, error: "A tenant must always have at least one admin." };
+    return { ok: false, error: "An organisation must always have at least one admin." };
   }
 
   await payload.update({
-    collection: "tenants",
-    id: tenantId,
+    collection: "organisations",
+    id: organisationId,
     data: { members: remaining },
     overrideAccess: true,
   });
