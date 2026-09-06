@@ -8,23 +8,28 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "knip": "knip"
+    "knip": "knip",
+    "payload": "payload"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@payloadcms/db-postgres": "^3.88.0",
+    "@payloadcms/next": "^3.88.0",
+    "@payloadcms/richtext-lexical": "^3.88.0",
+    "graphql": "^16.14.2",
     "mcp-handler": "^1.0.4",
-    "next": "^15.5.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "next": "^16.3.4",
+    "payload": "^3.88.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
     "@types/node": "^22.10.5",
-    "@types/react": "^19.0.7",
-    "@types/react-dom": "^19.0.3",
+    "@types/react": "^19.2.8",
+    "@types/react-dom": "^19.2.7",
     "eslint": "^9.18.0",
-    "eslint-config-next": "^15.5.0",
+    "eslint-config-next": "^16.3.4",
     "knip": "^5.41.1",
     "typescript": "^5.7.3"
   }
