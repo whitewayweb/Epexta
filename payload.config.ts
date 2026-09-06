@@ -4,8 +4,8 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
-import { Connections } from "./collections/Connections";
 import { Users } from "./collections/Users";
+import { Connections } from "./modules/wordpress/collection";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);

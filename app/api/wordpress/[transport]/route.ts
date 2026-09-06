@@ -1,6 +1,6 @@
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
-import * as wp from "@/lib/wordpress";
+import * as wp from "@/modules/wordpress/client";
 
 function textResult(data: unknown) {
   return {
@@ -217,7 +217,7 @@ const handler = createMcpHandler(
   );
   },
   {},
-  { basePath: "/api", maxDuration: 60 }
+  { basePath: "/api/wordpress", maxDuration: 60 }
 );
 
 export { handler as GET, handler as POST };
