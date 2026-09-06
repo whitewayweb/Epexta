@@ -38,3 +38,15 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const record = user as unknown as { id: string | number; email: string };
   return { id: String(record.id), email: record.email };
 }
+
+/** Resolves the user that owns this API key, or null if it's invalid/disabled. */
+export async function getUserByApiKey(apiKey: string): Promise<SessionUser | null> {
+  const payload = await getPayloadClient();
+  const { user } = await payload.auth({
+    headers: new Headers({ Authorization: `users API-Key ${apiKey}` }),
+  });
+  if (!user) return null;
+
+  const record = user as unknown as { id: string | number; email: string };
+  return { id: String(record.id), email: record.email };
+}

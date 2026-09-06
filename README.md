@@ -15,28 +15,29 @@ No delete capability is exposed (for posts, media, categories, or tags) — inte
 
 ## Setup
 
-1. On your WordPress site: **Users → Profile → Application Passwords**, generate one for a user with publishing permissions.
-2. Copy `.env.local.example` to `.env.local` and fill in `WP_SITE_URL`, `WP_USERNAME`, `WP_APP_PASSWORD`.
-3. `npm install`
-4. `npm run dev` — serves the MCP endpoint at `http://localhost:3000/api/mcp`
+1. Copy `.env.local.example` to `.env.local` and fill in `DATABASE_URL`, `PAYLOAD_SECRET`, `ENCRYPTION_KEY`.
+2. `npm install`
+3. `npm run dev`
+4. Sign up at `http://localhost:3000/wordpress/connect`. On your WordPress site: **Users → Profile → Application Passwords**, generate one for a user with publishing permissions, then paste the site URL, username, and Application Password into the connection form.
+5. Generate an API key from the same page.
 
 ## Deploying
 
 ```bash
-vercel env add WP_SITE_URL
-vercel env add WP_USERNAME
-vercel env add WP_APP_PASSWORD
+vercel env add DATABASE_URL
+vercel env add PAYLOAD_SECRET
+vercel env add ENCRYPTION_KEY
 vercel --prod
 ```
 
-Register the resulting `https://<your-project>.vercel.app/api/mcp` URL as an MCP connector in ChatGPT's Developer Mode.
+Register the resulting `https://<your-project>.vercel.app/api/wordpress/mcp` URL as an MCP connector in ChatGPT's Developer Mode, using the API key from `/wordpress/connect` as the bearer token. Each organisation's API key only ever reaches that organisation's own connected WordPress site.
 
 ## Notes
 
 - SEO fields are written as Yoast-compatible meta keys (`_yoast_wpseo_title`, `_yoast_wpseo_metadesc`). This only takes effect if the target site has Yoast SEO active and those keys registered for REST access — otherwise WordPress silently ignores unknown meta keys. RankMath support is not yet implemented.
 - All posts default to `draft` status — nothing goes live without an explicit publish.
 - No delete capability is exposed for any resource type — this plugin can only create, read, and update.
-- This is currently single-site: one WordPress site's credentials, set via environment variables. Multi-tenant (per-user connected sites) is a planned follow-up — see [plan.md](plan.md).
+- Multi-tenant: each organisation connects its own WordPress site and generates its own API key at `/wordpress/connect` — one API key never reaches another organisation's site.
 
 ## Troubleshooting
 

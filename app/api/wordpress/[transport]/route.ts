@@ -1,6 +1,10 @@
-import { createMcpHandler } from "mcp-handler";
+import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
-import * as wp from "@/modules/wordpress/client";
+import { getUserOrganisation } from "@/lib/organisation";
+import { getUserByApiKey } from "@/lib/session";
+import { createWordPressClient, type WordPressClient, type WordPressCredentials } from "@/modules/wordpress/client";
+import { getWordPressConnection } from "@/modules/wordpress/organisation";
 
 function textResult(data: unknown) {
   return {
@@ -18,7 +22,36 @@ function errorResult(error: unknown) {
   };
 }
 
-const handler = createMcpHandler(
+async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
+  if (!bearerToken) return undefined;
+
+  const user = await getUserByApiKey(bearerToken);
+  if (!user) return undefined;
+
+  const organisation = await getUserOrganisation(user.id);
+  if (!organisation) return undefined;
+
+  const connection = await getWordPressConnection(organisation.organisationId);
+  if (!connection) return undefined;
+
+  const credentials: WordPressCredentials = {
+    siteUrl: connection.siteUrl,
+    username: connection.username,
+    appPassword: connection.appPassword,
+  };
+
+  return { token: bearerToken, clientId: user.id, scopes: [], extra: { credentials } };
+}
+
+function clientFromExtra(extra: { authInfo?: AuthInfo }): WordPressClient {
+  const credentials = extra.authInfo?.extra?.credentials as WordPressCredentials | undefined;
+  if (!credentials) {
+    throw new Error("No WordPress connection found for this API key.");
+  }
+  return createWordPressClient(credentials);
+}
+
+const rawHandler = createMcpHandler(
   (server) => {
   server.registerTool(
     "list_posts",
@@ -35,9 +68,10 @@ const handler = createMcpHandler(
         perPage: z.number().int().min(1).max(50).optional(),
       },
     },
-    async ({ status, search, perPage }) => {
+    async ({ status, search, perPage }, extra) => {
       try {
-        const posts = await wp.listPosts({ status, search, perPage });
+        const client = clientFromExtra(extra);
+        const posts = await client.listPosts({ status, search, perPage });
         return textResult(posts);
       } catch (e) {
         return errorResult(e);
@@ -52,9 +86,10 @@ const handler = createMcpHandler(
       description: "List existing categories on the connected WordPress site.",
       inputSchema: {},
     },
-    async () => {
+    async (extra) => {
       try {
-        return textResult(await wp.listCategories());
+        const client = clientFromExtra(extra);
+        return textResult(await client.listCategories());
       } catch (e) {
         return errorResult(e);
       }
@@ -68,9 +103,10 @@ const handler = createMcpHandler(
       description: "List existing tags on the connected WordPress site.",
       inputSchema: {},
     },
-    async () => {
+    async (extra) => {
       try {
-        return textResult(await wp.listTags());
+        const client = clientFromExtra(extra);
+        return textResult(await client.listTags());
       } catch (e) {
         return errorResult(e);
       }
@@ -114,9 +150,10 @@ const handler = createMcpHandler(
         slug: z.string().optional().describe("Custom URL slug."),
       },
     },
-    async (input) => {
+    async (input, extra) => {
       try {
-        const post = await wp.createPost(input);
+        const client = clientFromExtra(extra);
+        const post = await client.createPost(input);
         return textResult(post);
       } catch (e) {
         return errorResult(e);
@@ -143,9 +180,10 @@ const handler = createMcpHandler(
         slug: z.string().optional(),
       },
     },
-    async ({ postId, ...fields }) => {
+    async ({ postId, ...fields }, extra) => {
       try {
-        const post = await wp.updatePost(postId, fields);
+        const client = clientFromExtra(extra);
+        const post = await client.updatePost(postId, fields);
         return textResult(post);
       } catch (e) {
         return errorResult(e);
@@ -162,9 +200,10 @@ const handler = createMcpHandler(
         postId: z.number().int(),
       },
     },
-    async ({ postId }) => {
+    async ({ postId }, extra) => {
       try {
-        const post = await wp.publishPost(postId);
+        const client = clientFromExtra(extra);
+        const post = await client.publishPost(postId);
         return textResult(post);
       } catch (e) {
         return errorResult(e);
@@ -190,8 +229,9 @@ const handler = createMcpHandler(
         altText: z.string().optional(),
       },
     },
-    async ({ postId, imageUrl, imageBase64, mimeType, filename, altText }) => {
+    async ({ postId, imageUrl, imageBase64, mimeType, filename, altText }, extra) => {
       try {
+        const client = clientFromExtra(extra);
         if (!imageUrl && !imageBase64) {
           throw new Error("Provide either imageUrl or imageBase64.");
         }
@@ -200,15 +240,15 @@ const handler = createMcpHandler(
         }
 
         const media = imageUrl
-          ? await wp.uploadMediaFromUrl(imageUrl, filename, altText)
-          : await wp.uploadMediaFromBase64(
+          ? await client.uploadMediaFromUrl(imageUrl, filename, altText)
+          : await client.uploadMediaFromBase64(
               imageBase64!,
               filename,
               mimeType ?? "image/png",
               altText
             );
 
-        const post = await wp.setFeaturedImage(postId, media.id);
+        const post = await client.setFeaturedImage(postId, media.id);
         return textResult({ media, post });
       } catch (e) {
         return errorResult(e);
@@ -219,5 +259,7 @@ const handler = createMcpHandler(
   {},
   { basePath: "/api/wordpress", maxDuration: 60 }
 );
+
+const handler = withMcpAuth(rawHandler, verifyToken, { required: true });
 
 export { handler as GET, handler as POST };

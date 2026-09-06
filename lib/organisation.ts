@@ -30,7 +30,7 @@ export async function createOrganisationForUser(userId: string): Promise<string>
   const payload = await getPayloadClient();
   const doc = await payload.create({
     collection: "organisations",
-    data: { members: [{ user: userId, role: "admin" }] },
+    data: { members: [{ user: Number(userId), role: "admin" }] },
     overrideAccess: true,
   });
   return String(doc.id);
@@ -75,7 +75,7 @@ export async function addOrganisationMember(
   await payload.update({
     collection: "organisations",
     id: organisationId,
-    data: { members: [...members, { user: userId, role }] },
+    data: { members: [...members, { user: Number(userId), role }] },
     overrideAccess: true,
   });
   return { ok: true };
