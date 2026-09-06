@@ -1,39 +1,57 @@
 import type { CollectionConfig, PayloadRequest } from "payload";
 import { decrypt, encrypt } from "../../lib/crypto";
-import { hasRole, TENANT_ROLES, type MemberRow } from "../../lib/members";
+import { findMember, type MemberRow, type TenantRole } from "../../lib/members";
 
-async function isTenantAdmin(req: PayloadRequest, id: string | number | undefined): Promise<boolean> {
-  if (!req.user || !id) return false;
-  const doc = await req.payload
-    .findByID({ collection: "connections", id, overrideAccess: true })
-    .catch(() => null);
-  return hasRole((doc as { members?: MemberRow[] } | null)?.members, String(req.user.id), "admin");
+async function tenantRoleForRequest(
+  req: PayloadRequest
+): Promise<{ tenantId: string; role: TenantRole } | null> {
+  if (!req.user) return null;
+  const result = await req.payload.find({
+    collection: "tenants",
+    where: { "members.user": { equals: req.user.id } },
+    limit: 1,
+    overrideAccess: true,
+  });
+
+  const doc = result.docs[0];
+  if (!doc) return null;
+
+  const member = findMember((doc.members ?? []) as MemberRow[], String(req.user.id));
+  if (!member) return null;
+
+  return { tenantId: String(doc.id), role: member.role };
 }
 
-export const Connections: CollectionConfig = {
-  slug: "connections",
+export const WordPressConnections: CollectionConfig = {
+  slug: "wordpress-connections",
   admin: {
     useAsTitle: "siteUrl",
-    description:
-      "One WordPress site per tenant. Admin members manage the connection; member users only get their own API key.",
+    description: "One WordPress site per tenant.",
   },
   access: {
-    read: ({ req }) => (req.user ? { "members.user": { equals: req.user.id } } : false),
+    read: async ({ req }) => {
+      const ctx = await tenantRoleForRequest(req);
+      return ctx ? { tenant: { equals: ctx.tenantId } } : false;
+    },
     create: ({ req }) => Boolean(req.user),
-    update: ({ req, id }) => isTenantAdmin(req, id),
-    delete: ({ req, id }) => isTenantAdmin(req, id),
-  },
-  hooks: {
-    beforeChange: [
-      ({ operation, data, req }) => {
-        if (operation === "create" && req.user && (!data.members || data.members.length === 0)) {
-          data.members = [{ user: req.user.id, role: "admin" }];
-        }
-        return data;
-      },
-    ],
+    update: async ({ req }) => {
+      const ctx = await tenantRoleForRequest(req);
+      return ctx?.role === "admin" ? { tenant: { equals: ctx.tenantId } } : false;
+    },
+    delete: async ({ req }) => {
+      const ctx = await tenantRoleForRequest(req);
+      return ctx?.role === "admin" ? { tenant: { equals: ctx.tenantId } } : false;
+    },
   },
   fields: [
+    {
+      name: "tenant",
+      type: "relationship",
+      relationTo: "tenants",
+      required: true,
+      unique: true,
+      admin: { position: "sidebar" },
+    },
     {
       name: "siteUrl",
       type: "text",
@@ -56,29 +74,6 @@ export const Connections: CollectionConfig = {
       admin: {
         description: "WordPress Application Password (24-char, encrypted at rest).",
       },
-    },
-    {
-      name: "members",
-      type: "array",
-      minRows: 1,
-      admin: {
-        description: "Tenant admins manage the connection; members only get their own API key.",
-      },
-      fields: [
-        {
-          name: "user",
-          type: "relationship",
-          relationTo: "users",
-          required: true,
-        },
-        {
-          name: "role",
-          type: "select",
-          options: [...TENANT_ROLES],
-          defaultValue: "member",
-          required: true,
-        },
-      ],
     },
   ],
 };

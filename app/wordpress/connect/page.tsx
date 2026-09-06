@@ -1,10 +1,11 @@
 import { getCurrentUser } from "@/lib/session";
+import { getTenantMembers, getUserTenant } from "@/lib/tenant";
 import { ApiKeyPanel } from "@/modules/wordpress/ApiKeyPanel";
 import { AuthForm } from "@/modules/wordpress/AuthForm";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
 import { logoutAction } from "@/modules/wordpress/actions";
 import { MembersPanel } from "@/modules/wordpress/MembersPanel";
-import { getPopulatedMembers, getTenantContext } from "@/modules/wordpress/tenant";
+import { getWordPressConnection } from "@/modules/wordpress/tenant";
 
 export default async function ConnectPage() {
   const user = await getCurrentUser();
@@ -19,7 +20,8 @@ export default async function ConnectPage() {
     );
   }
 
-  const tenant = await getTenantContext(user.id);
+  const tenant = await getUserTenant(user.id);
+  const connection = tenant ? await getWordPressConnection(tenant.tenantId) : null;
 
   return (
     <main style={{ padding: 24, display: "flex", flexDirection: "column", gap: 32 }}>
@@ -41,11 +43,11 @@ export default async function ConnectPage() {
         <>
           <section>
             <h2>Connection</h2>
-            <ConnectionForm siteUrl={tenant.siteUrl} username={tenant.username} />
+            <ConnectionForm siteUrl={connection?.siteUrl ?? ""} username={connection?.username ?? ""} />
           </section>
           <section>
             <h2>Members</h2>
-            <MembersPanel members={await getPopulatedMembers(tenant.connectionId)} />
+            <MembersPanel members={await getTenantMembers(tenant.tenantId)} />
           </section>
         </>
       )}
@@ -53,10 +55,14 @@ export default async function ConnectPage() {
       {tenant && tenant.role === "member" && (
         <section>
           <h2>Connection</h2>
-          <p>
-            Connected to <strong>{tenant.siteUrl}</strong>. Only the tenant admin can change the site or
-            Application Password.
-          </p>
+          {connection ? (
+            <p>
+              Connected to <strong>{connection.siteUrl}</strong>. Only the tenant admin can change the site or
+              Application Password.
+            </p>
+          ) : (
+            <p>Your tenant admin hasn&apos;t connected a WordPress site yet.</p>
+          )}
         </section>
       )}
 

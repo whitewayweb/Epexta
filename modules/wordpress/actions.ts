@@ -3,10 +3,10 @@
 import crypto from "crypto";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { memberUserId } from "@/lib/members";
 import { getPayloadClient } from "@/lib/payload";
 import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/lib/session";
-import { getTenantContext } from "@/modules/wordpress/tenant";
+import { addTenantMember, createTenantForUser, getUserTenant, removeTenantMember } from "@/lib/tenant";
+import { saveWordPressConnection } from "./tenant";
 
 export interface AuthState {
   error: string | null;
@@ -73,7 +73,7 @@ export async function signupAction(_prevState: AuthState, formData: FormData): P
     return { error: "Account created, but automatic login failed. Please log in." };
   }
   await setSessionCookie(result.token, result.exp);
-  redirect("/connect");
+  redirect("/wordpress/connect");
 }
 
 export async function loginAction(_prevState: AuthState, formData: FormData): Promise<AuthState> {
@@ -96,12 +96,12 @@ export async function loginAction(_prevState: AuthState, formData: FormData): Pr
   } catch {
     return { error: "Invalid email or password." };
   }
-  redirect("/connect");
+  redirect("/wordpress/connect");
 }
 
 export async function logoutAction(): Promise<void> {
   await clearSessionCookie();
-  redirect("/connect");
+  redirect("/wordpress/connect");
 }
 
 export async function saveConnectionAction(
@@ -121,34 +121,18 @@ export async function saveConnectionAction(
   if (!parsed.success) {
     return { error: firstIssueMessage(parsed.error), success: false };
   }
-  const { siteUrl, username, appPassword } = parsed.data;
 
-  const tenant = await getTenantContext(user.id);
+  let tenant = await getUserTenant(user.id);
   if (tenant && tenant.role !== "admin") {
     return { error: "Only tenant admins can edit the connection.", success: false };
   }
+  if (!tenant) {
+    const tenantId = await createTenantForUser(user.id);
+    tenant = { tenantId, role: "admin" };
+  }
 
-  const payload = await getPayloadClient();
   try {
-    if (tenant) {
-      await payload.update({
-        collection: "connections",
-        id: tenant.connectionId,
-        data: { siteUrl, username, appPassword },
-        overrideAccess: true,
-      });
-    } else {
-      await payload.create({
-        collection: "connections",
-        data: {
-          siteUrl,
-          username,
-          appPassword,
-          members: [{ user: user.id, role: "admin" }],
-        },
-        overrideAccess: true,
-      });
-    }
+    await saveWordPressConnection(tenant.tenantId, parsed.data);
   } catch {
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
@@ -186,7 +170,7 @@ export async function inviteMemberAction(
     return { error: "You must be logged in.", success: false };
   }
 
-  const tenant = await getTenantContext(user.id);
+  const tenant = await getUserTenant(user.id);
   if (!tenant || tenant.role !== "admin") {
     return { error: "Only tenant admins can invite members.", success: false };
   }
@@ -208,19 +192,8 @@ export async function inviteMemberAction(
     return { error: "That person needs to sign up for an account first.", success: false };
   }
 
-  const alreadyMember = tenant.members.some((m) => memberUserId(m) === String(invitedUser.id));
-  if (alreadyMember) {
-    return { error: "That person is already a member.", success: false };
-  }
-
-  await payload.update({
-    collection: "connections",
-    id: tenant.connectionId,
-    data: { members: [...tenant.members, { user: invitedUser.id, role: "member" }] },
-    overrideAccess: true,
-  });
-
-  return { error: null, success: true };
+  const result = await addTenantMember(tenant.tenantId, String(invitedUser.id), "member");
+  return { error: result.error ?? null, success: result.ok };
 }
 
 export async function removeMemberAction(
@@ -232,7 +205,7 @@ export async function removeMemberAction(
     return { error: "You must be logged in.", success: false };
   }
 
-  const tenant = await getTenantContext(user.id);
+  const tenant = await getUserTenant(user.id);
   if (!tenant || tenant.role !== "admin") {
     return { error: "Only tenant admins can remove members.", success: false };
   }
@@ -242,19 +215,6 @@ export async function removeMemberAction(
     return { error: "Missing member.", success: false };
   }
 
-  const remaining = tenant.members.filter((m) => memberUserId(m) !== targetUserId);
-  const stillHasAdmin = remaining.some((m) => m.role === "admin");
-  if (!stillHasAdmin) {
-    return { error: "A tenant must always have at least one admin.", success: false };
-  }
-
-  const payload = await getPayloadClient();
-  await payload.update({
-    collection: "connections",
-    id: tenant.connectionId,
-    data: { members: remaining },
-    overrideAccess: true,
-  });
-
-  return { error: null, success: true };
+  const result = await removeTenantMember(tenant.tenantId, targetUserId);
+  return { error: result.error ?? null, success: result.ok };
 }

@@ -1,7 +1,7 @@
 "use client";
 
+import type { PopulatedMember } from "@/lib/tenant";
 import { useActionState } from "react";
-import type { PopulatedMember } from "./tenant";
 import { inviteMemberAction, removeMemberAction, type MemberActionState } from "./actions";
 
 const initialState: MemberActionState = { error: null, success: false };

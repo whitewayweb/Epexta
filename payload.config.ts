@@ -4,8 +4,9 @@ import path from "path";
 import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
+import { Tenants } from "./collections/Tenants";
 import { Users } from "./collections/Users";
-import { Connections } from "./modules/wordpress/collection";
+import { WordPressConnections } from "./modules/wordpress/collection";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -17,7 +18,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Connections],
+  collections: [Users, Tenants, WordPressConnections],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {

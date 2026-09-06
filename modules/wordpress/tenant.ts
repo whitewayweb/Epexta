@@ -1,20 +1,16 @@
-import { findMember, memberUserId, type MemberRow, type TenantRole } from "@/lib/members";
 import { getPayloadClient } from "@/lib/payload";
 
-export interface TenantContext {
+export interface WordPressConnection {
   connectionId: string;
-  role: TenantRole;
   siteUrl: string;
   username: string;
-  /** Raw (unpopulated) member rows, as stored — pass straight back into an update. */
-  members: MemberRow[];
 }
 
-export async function getTenantContext(userId: string): Promise<TenantContext | null> {
+export async function getWordPressConnection(tenantId: string): Promise<WordPressConnection | null> {
   const payload = await getPayloadClient();
   const result = await payload.find({
-    collection: "connections",
-    where: { "members.user": { equals: userId } },
+    collection: "wordpress-connections",
+    where: { tenant: { equals: tenantId } },
     limit: 1,
     overrideAccess: true,
   });
@@ -22,38 +18,28 @@ export async function getTenantContext(userId: string): Promise<TenantContext | 
   const doc = result.docs[0];
   if (!doc) return null;
 
-  const members = (doc.members ?? []) as MemberRow[];
-  const own = findMember(members, userId);
-  if (!own) return null;
-
-  return {
-    connectionId: String(doc.id),
-    role: own.role,
-    siteUrl: String(doc.siteUrl),
-    username: String(doc.username),
-    members,
-  };
+  return { connectionId: String(doc.id), siteUrl: String(doc.siteUrl), username: String(doc.username) };
 }
 
-export interface PopulatedMember {
-  userId: string;
-  email: string;
-  role: TenantRole;
-}
-
-export async function getPopulatedMembers(connectionId: string): Promise<PopulatedMember[]> {
+export async function saveWordPressConnection(
+  tenantId: string,
+  data: { siteUrl: string; username: string; appPassword: string }
+): Promise<void> {
   const payload = await getPayloadClient();
-  const doc = await payload.findByID({
-    collection: "connections",
-    id: connectionId,
-    depth: 1,
-    overrideAccess: true,
-  });
+  const existing = await getWordPressConnection(tenantId);
 
-  const members = (doc.members ?? []) as MemberRow[];
-  return members.map((m) => ({
-    userId: memberUserId(m),
-    email: typeof m.user === "object" ? String(m.user.email ?? "") : "(unknown)",
-    role: m.role,
-  }));
+  if (existing) {
+    await payload.update({
+      collection: "wordpress-connections",
+      id: existing.connectionId,
+      data,
+      overrideAccess: true,
+    });
+  } else {
+    await payload.create({
+      collection: "wordpress-connections",
+      data: { ...data, tenant: tenantId },
+      overrideAccess: true,
+    });
+  }
 }
