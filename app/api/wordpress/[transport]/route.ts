@@ -9,7 +9,7 @@ import {
   type WordPressClient,
   type WordPressCredentials,
 } from "@/modules/wordpress/client";
-import { getWordPressConnection } from "@/modules/wordpress/organisation";
+import { listWordPressConnections, type WordPressConnection } from "@/modules/wordpress/organisation";
 import { runSeoChecks, type SeoCheckResult } from "@/modules/wordpress/seo-check";
 
 // Checks whose fixes touch images (alt text, "add some images") are deliberately excluded
@@ -97,41 +97,102 @@ async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInf
     }
 
     // Authentication only proves who the caller is. Whether they have an organisation
-    // or a connected WordPress site yet is a separate, non-fatal condition - surfaced
-    // to the LLM as a clear tool-call error (see clientFromExtra) rather than a generic
+    // or any connected WordPress sites yet is a separate, non-fatal condition - surfaced
+    // to the LLM as a clear tool-call error (see resolveConnection) rather than a generic
     // 401, so it can tell the user what to do instead of just "unauthorized".
     const organisation = await getUserOrganisation(user.id);
-    const connection = organisation ? await getWordPressConnection(organisation.organisationId) : null;
-    const credentials: WordPressCredentials | undefined = connection
-      ? { siteUrl: connection.siteUrl, username: connection.username, appPassword: connection.appPassword }
-      : undefined;
+    const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
 
-    return { token: bearerToken, clientId: user.id, scopes: [], extra: { credentials } };
+    return { token: bearerToken, clientId: user.id, scopes: [], extra: { connections } };
   } catch (error) {
     console.error("[wordpress-mcp] auth threw an error:", error);
     return undefined;
   }
 }
 
-function clientFromExtra(extra: { authInfo?: AuthInfo }): WordPressClient {
-  const credentials = extra.authInfo?.extra?.credentials as WordPressCredentials | undefined;
-  if (!credentials) {
+function siteLabel(connection: WordPressConnection): string {
+  return connection.label ? `${connection.label} (${connection.siteUrl})` : connection.siteUrl;
+}
+
+// An organisation may have several connected sites. Tools that act on a specific site
+// take an optional siteId - with only one site connected it can be omitted (the common
+// case), but with several the caller must disambiguate via list_sites first.
+function resolveConnection(extra: { authInfo?: AuthInfo }, siteId?: number): WordPressConnection {
+  const connections = (extra.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
+
+  if (connections.length === 0) {
     throw new ToolError(
       "No WordPress site is connected to this account yet. Visit /wordpress/connect to connect one, then try again."
     );
   }
+
+  if (siteId !== undefined) {
+    const match = connections.find((c) => Number(c.connectionId) === siteId);
+    if (!match) {
+      throw new ToolError(
+        `No connected site with siteId ${siteId}. Call list_sites to see valid site IDs.`
+      );
+    }
+    return match;
+  }
+
+  if (connections.length === 1) return connections[0];
+
+  throw new ToolError(
+    `This account has ${connections.length} connected sites: ` +
+      connections.map((c) => `${c.connectionId} (${siteLabel(c)})`).join(", ") +
+      ". Call list_sites, then pass the chosen siteId."
+  );
+}
+
+function clientFromExtra(extra: { authInfo?: AuthInfo }, siteId?: number): WordPressClient {
+  const connection = resolveConnection(extra, siteId);
+  const credentials: WordPressCredentials = {
+    siteUrl: connection.siteUrl,
+    username: connection.username,
+    appPassword: connection.appPassword,
+  };
   return createWordPressClient(credentials);
 }
 
+const siteIdSchema = z
+  .number()
+  .int()
+  .optional()
+  .describe(
+    "Which connected WordPress site to use, from list_sites. Optional when only one site is connected; required when several are."
+  );
+
 const rawHandler = createMcpHandler(
   (server) => {
+  server.registerTool(
+    "list_sites",
+    {
+      title: "List Connected WordPress Sites",
+      description:
+        "List the WordPress sites connected to this account's organisation. Call this first when more than one site may be connected, to get the siteId to pass to the other tools.",
+      inputSchema: {},
+    },
+    async (_args, extra) => {
+      try {
+        const connections = (extra.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
+        return textResult(
+          connections.map((c) => ({ siteId: Number(c.connectionId), label: c.label || null, siteUrl: c.siteUrl }))
+        );
+      } catch (e) {
+        return errorResult(e);
+      }
+    }
+  );
+
   server.registerTool(
     "list_posts",
     {
       title: "List WordPress Posts",
       description:
-        "List blog posts from the connected WordPress site. Use to check existing posts before creating new ones or to find a post to edit.",
+        "List blog posts from a connected WordPress site. Use to check existing posts before creating new ones or to find a post to edit.",
       inputSchema: {
+        siteId: siteIdSchema,
         status: z
           .enum(["publish", "draft", "pending", "any"])
           .optional()
@@ -140,9 +201,9 @@ const rawHandler = createMcpHandler(
         perPage: z.number().int().min(1).max(50).optional(),
       },
     },
-    async ({ status, search, perPage }, extra) => {
+    async ({ siteId, status, search, perPage }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         const posts = await client.listPosts({ status, search, perPage });
         return textResult(posts);
       } catch (e) {
@@ -155,12 +216,12 @@ const rawHandler = createMcpHandler(
     "list_categories",
     {
       title: "List Categories",
-      description: "List existing categories on the connected WordPress site.",
-      inputSchema: {},
+      description: "List existing categories on a connected WordPress site.",
+      inputSchema: { siteId: siteIdSchema },
     },
-    async (_args, extra) => {
+    async ({ siteId }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         return textResult(await client.listCategories());
       } catch (e) {
         return errorResult(e);
@@ -172,12 +233,12 @@ const rawHandler = createMcpHandler(
     "list_tags",
     {
       title: "List Tags",
-      description: "List existing tags on the connected WordPress site.",
-      inputSchema: {},
+      description: "List existing tags on a connected WordPress site.",
+      inputSchema: { siteId: siteIdSchema },
     },
-    async (_args, extra) => {
+    async ({ siteId }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         return textResult(await client.listTags());
       } catch (e) {
         return errorResult(e);
@@ -190,10 +251,11 @@ const rawHandler = createMcpHandler(
     {
       title: "Create Blog Post",
       description:
-        "Create a new blog post on the connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
+        "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
         "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. Use an <img> with accurate descriptive alt text when an image is appropriate. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via set_featured_image. " +
         articleWritingGuidance,
       inputSchema: {
+        siteId: siteIdSchema,
         title: z.string().describe("Post title."),
         contentHtml: z
           .string()
@@ -237,9 +299,9 @@ const rawHandler = createMcpHandler(
           .describe("Custom URL slug. Should contain the focus keyphrase when one is set."),
       },
     },
-    async (input, extra) => {
+    async ({ siteId, ...input }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         const { post, warnings } = await client.createPost(input);
         const seoCheck = runSeoChecks(input);
         const seoFollowUp = seoFollowUpNote(seoCheck, post.id);
@@ -258,6 +320,7 @@ const rawHandler = createMcpHandler(
         "Update fields on an existing post: content, categories, tags, SEO meta, slug, or status. Only fields provided are changed. When contentHtml is being rewritten, apply the same standards as create_post: call list_posts first and include at least one relevant internal link when one exists, keep at least one <h2>/<h3> subheading carrying the focus keyphrase (unless too short for subheadings), keep seoDescription to 156 characters or fewer, and check the returned seoCheck for problems other than image-related ones before finishing. The following writing guidance also applies only when drafting or rewriting content, not for metadata-only edits. " +
         articleWritingGuidance,
       inputSchema: {
+        siteId: siteIdSchema,
         postId: z.number().int(),
         title: z.string().optional(),
         contentHtml: z.string().optional().describe(articleHtmlDescription),
@@ -274,9 +337,9 @@ const rawHandler = createMcpHandler(
         slug: z.string().optional(),
       },
     },
-    async ({ postId, ...fields }, extra) => {
+    async ({ siteId, postId, ...fields }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         const { post, warnings } = await client.updatePost(postId, fields);
         const seoCheck = runSeoChecks(fields);
         // Only nag about SEO when this call actually touched a keyphrase-relevant field -
@@ -297,12 +360,13 @@ const rawHandler = createMcpHandler(
       title: "Publish Post",
       description: "Change an existing post's status to published.",
       inputSchema: {
+        siteId: siteIdSchema,
         postId: z.number().int(),
       },
     },
-    async ({ postId }, extra) => {
+    async ({ siteId, postId }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         const { post, warnings } = await client.publishPost(postId);
         return textResult({ post, warnings });
       } catch (e) {
@@ -342,6 +406,7 @@ const rawHandler = createMcpHandler(
       description:
         "Upload an image and set it as a post's featured image. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 with mimeType (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
       inputSchema: {
+        siteId: siteIdSchema,
         postId: z.number().int(),
         imageUrl: z.string().url().optional(),
         imageBase64: z.string().optional(),
@@ -353,9 +418,9 @@ const rawHandler = createMcpHandler(
         altText: z.string().optional(),
       },
     },
-    async ({ postId, imageUrl, imageBase64, mimeType, filename, altText }, extra) => {
+    async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename, altText }, extra) => {
       try {
-        const client = clientFromExtra(extra);
+        const client = clientFromExtra(extra, siteId);
         if (!imageUrl && !imageBase64) {
           throw new ToolError("Provide either imageUrl or imageBase64.");
         }

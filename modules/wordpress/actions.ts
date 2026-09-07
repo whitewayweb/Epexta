@@ -1,6 +1,7 @@
 "use server";
 
 import crypto from "crypto";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getPayloadClient } from "@/lib/payload";
 import { getCurrentUser } from "@/lib/session";
@@ -10,7 +11,7 @@ import {
   getUserOrganisation,
   removeOrganisationMember,
 } from "@/lib/organisation";
-import { saveWordPressConnection } from "./organisation";
+import { createWordPressConnection, deleteWordPressConnection, updateWordPressConnection } from "./organisation";
 
 export interface ConnectionState {
   error: string | null;
@@ -36,6 +37,7 @@ const connectionSchema = z.object({
     .transform((value) => value.replace(/\/+$/, "")),
   username: z.string().trim().min(1, "WordPress username is required."),
   appPassword: z.string().trim().min(1, "Application Password is required."),
+  label: z.string().trim().optional(),
 });
 
 const inviteSchema = z.object({
@@ -46,7 +48,16 @@ function firstIssueMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid input.";
 }
 
-export async function saveConnectionAction(
+function parseConnectionForm(formData: FormData) {
+  return connectionSchema.safeParse({
+    siteUrl: formData.get("siteUrl"),
+    username: formData.get("username"),
+    appPassword: formData.get("appPassword"),
+    label: formData.get("label"),
+  });
+}
+
+export async function addConnectionAction(
   _prevState: ConnectionState,
   formData: FormData
 ): Promise<ConnectionState> {
@@ -55,18 +66,14 @@ export async function saveConnectionAction(
     return { error: "You must be logged in.", success: false };
   }
 
-  const parsed = connectionSchema.safeParse({
-    siteUrl: formData.get("siteUrl"),
-    username: formData.get("username"),
-    appPassword: formData.get("appPassword"),
-  });
+  const parsed = parseConnectionForm(formData);
   if (!parsed.success) {
     return { error: firstIssueMessage(parsed.error), success: false };
   }
 
   let organisation = await getUserOrganisation(user.id);
   if (organisation && organisation.role !== "admin") {
-    return { error: "Only organisation admins can edit the connection.", success: false };
+    return { error: "Only organisation admins can add a site.", success: false };
   }
   if (!organisation) {
     const organisationId = await createOrganisationForUser(user.id);
@@ -74,11 +81,75 @@ export async function saveConnectionAction(
   }
 
   try {
-    await saveWordPressConnection(organisation.organisationId, parsed.data);
+    await createWordPressConnection(organisation.organisationId, parsed.data);
   } catch {
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
 
+  revalidatePath("/wordpress/connect");
+  return { error: null, success: true };
+}
+
+export async function updateConnectionAction(
+  _prevState: ConnectionState,
+  formData: FormData
+): Promise<ConnectionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "You must be logged in.", success: false };
+  }
+
+  const organisation = await getUserOrganisation(user.id);
+  if (!organisation || organisation.role !== "admin") {
+    return { error: "Only organisation admins can edit a connection.", success: false };
+  }
+
+  const connectionId = String(formData.get("connectionId") ?? "");
+  if (!connectionId) {
+    return { error: "Missing connection.", success: false };
+  }
+
+  const parsed = parseConnectionForm(formData);
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error), success: false };
+  }
+
+  try {
+    await updateWordPressConnection(organisation.organisationId, connectionId, parsed.data);
+  } catch {
+    return { error: "Could not save the connection. Check the site URL and try again.", success: false };
+  }
+
+  revalidatePath("/wordpress/connect");
+  return { error: null, success: true };
+}
+
+export async function removeConnectionAction(
+  _prevState: ConnectionState,
+  formData: FormData
+): Promise<ConnectionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "You must be logged in.", success: false };
+  }
+
+  const organisation = await getUserOrganisation(user.id);
+  if (!organisation || organisation.role !== "admin") {
+    return { error: "Only organisation admins can remove a connection.", success: false };
+  }
+
+  const connectionId = String(formData.get("connectionId") ?? "");
+  if (!connectionId) {
+    return { error: "Missing connection.", success: false };
+  }
+
+  try {
+    await deleteWordPressConnection(organisation.organisationId, connectionId);
+  } catch {
+    return { error: "Could not remove the connection.", success: false };
+  }
+
+  revalidatePath("/wordpress/connect");
   return { error: null, success: true };
 }
 

@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiKeyPanel } from "@/modules/wordpress/ApiKeyPanel";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
+import { ConnectionsList, type DisplayConnection } from "@/modules/wordpress/ConnectionsList";
 import { MembersPanel } from "@/modules/wordpress/MembersPanel";
-import { getWordPressConnection } from "@/modules/wordpress/organisation";
+import { listWordPressConnections } from "@/modules/wordpress/organisation";
 
 const CONNECT_PATH = "/wordpress/connect";
 
@@ -19,12 +20,17 @@ export default async function ConnectPage() {
   }
 
   const organisation = await getUserOrganisation(user.id);
-  const connection = organisation ? await getWordPressConnection(organisation.organisationId) : null;
+  const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
+  // Application Passwords never leave the server - strip them before handing the list to
+  // the client component that renders it.
+  const displayConnections: DisplayConnection[] = connections.map(
+    ({ connectionId, label, siteUrl, username }) => ({ connectionId, label, siteUrl, username })
+  );
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-10">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Connect your WordPress site</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Connect your WordPress sites</h1>
         <form action={logoutAction}>
           <input type="hidden" name="redirectTo" value={CONNECT_PATH} />
           <Button type="submit" variant="outline" size="sm">
@@ -36,13 +42,14 @@ export default async function ConnectPage() {
       {!organisation && (
         <Card>
           <CardHeader>
-            <CardTitle>Connect your site</CardTitle>
+            <CardTitle>Connect your first site</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               You don&apos;t have a WordPress site connected yet. Add one below and you&apos;ll become its admin.
+              You&apos;ll be able to connect more sites afterwards.
             </p>
-            <ConnectionForm siteUrl="" username="" />
+            <ConnectionForm mode="add" />
           </CardContent>
         </Card>
       )}
@@ -51,10 +58,14 @@ export default async function ConnectPage() {
         <>
           <Card>
             <CardHeader>
-              <CardTitle>Connection</CardTitle>
+              <CardTitle>Connected sites</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ConnectionForm siteUrl={connection?.siteUrl ?? ""} username={connection?.username ?? ""} />
+            <CardContent className="space-y-6">
+              <ConnectionsList connections={displayConnections} />
+              <div className="border-t border-border/60 pt-6">
+                <h3 className="mb-3 text-sm font-medium">Add another site</h3>
+                <ConnectionForm mode="add" />
+              </div>
             </CardContent>
           </Card>
           <Card>
@@ -71,16 +82,27 @@ export default async function ConnectPage() {
       {organisation && organisation.role === "member" && (
         <Card>
           <CardHeader>
-            <CardTitle>Connection</CardTitle>
+            <CardTitle>Connected sites</CardTitle>
           </CardHeader>
           <CardContent>
-            {connection ? (
-              <p className="text-sm text-muted-foreground">
-                Connected to <span className="font-medium text-foreground">{connection.siteUrl}</span>. Only the
-                organisation admin can change the site or Application Password.
-              </p>
+            {displayConnections.length > 0 ? (
+              <>
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Only the organisation admin can add, change, or remove a site connection.
+                </p>
+                <ul className="max-w-md divide-y divide-border/60">
+                  {displayConnections.map((c) => (
+                    <li key={c.connectionId} className="py-2 text-sm">
+                      <span className="font-medium text-foreground">{c.label || c.siteUrl}</span>
+                      {c.label && <span className="text-muted-foreground"> — {c.siteUrl}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : (
-              <p className="text-sm text-muted-foreground">Your organisation admin hasn&apos;t connected a WordPress site yet.</p>
+              <p className="text-sm text-muted-foreground">
+                Your organisation admin hasn&apos;t connected a WordPress site yet.
+              </p>
             )}
           </CardContent>
         </Card>
