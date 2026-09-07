@@ -1,6 +1,6 @@
 import type { CollectionConfig, PayloadRequest } from "payload";
 import { decrypt, encrypt } from "../../lib/crypto";
-import { findMember, type MemberRow, type OrganisationRole } from "../../lib/members";
+import { findMember, isSuperadmin, type MemberRow, type OrganisationRole } from "../../lib/members";
 
 async function organisationRoleForRequest(
   req: PayloadRequest
@@ -30,15 +30,18 @@ export const WordPressConnections: CollectionConfig = {
   },
   access: {
     read: async ({ req }) => {
+      if (isSuperadmin(req)) return true;
       const ctx = await organisationRoleForRequest(req);
       return ctx ? { organisation: { equals: ctx.organisationId } } : false;
     },
     create: ({ req }) => Boolean(req.user),
     update: async ({ req }) => {
+      if (isSuperadmin(req)) return true;
       const ctx = await organisationRoleForRequest(req);
       return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
     },
     delete: async ({ req }) => {
+      if (isSuperadmin(req)) return true;
       const ctx = await organisationRoleForRequest(req);
       return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
     },

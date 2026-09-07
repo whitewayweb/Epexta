@@ -1,5 +1,5 @@
 import type { CollectionConfig, PayloadRequest } from "payload";
-import { hasRole, ORGANISATION_ROLES, type MemberRow } from "../lib/members";
+import { hasRole, isSuperadmin, ORGANISATION_ROLES, type MemberRow } from "../lib/members";
 
 async function isOrganisationAdmin(req: PayloadRequest, id: string | number | undefined): Promise<boolean> {
   if (!req.user || !id) return false;
@@ -14,10 +14,13 @@ export const Organisations: CollectionConfig = {
     description: "A team/account. Any module (WordPress, future integrations) attaches to one of these.",
   },
   access: {
-    read: ({ req }) => (req.user ? { "members.user": { equals: req.user.id } } : false),
+    read: ({ req }) => {
+      if (isSuperadmin(req)) return true;
+      return req.user ? { "members.user": { equals: req.user.id } } : false;
+    },
     create: ({ req }) => Boolean(req.user),
-    update: ({ req, id }) => isOrganisationAdmin(req, id),
-    delete: ({ req, id }) => isOrganisationAdmin(req, id),
+    update: ({ req, id }) => (isSuperadmin(req) ? true : isOrganisationAdmin(req, id)),
+    delete: ({ req, id }) => (isSuperadmin(req) ? true : isOrganisationAdmin(req, id)),
   },
   hooks: {
     beforeChange: [

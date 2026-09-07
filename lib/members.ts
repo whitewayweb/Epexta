@@ -1,3 +1,5 @@
+import type { PayloadRequest } from "payload";
+
 export const ORGANISATION_ROLES = ["admin", "member"] as const;
 export type OrganisationRole = (typeof ORGANISATION_ROLES)[number];
 
@@ -16,4 +18,9 @@ export function findMember(members: MemberRow[] | null | undefined, userId: stri
 
 export function hasRole(members: MemberRow[] | null | undefined, userId: string, role: OrganisationRole): boolean {
   return findMember(members, userId)?.role === role;
+}
+
+/** The platform owner — bypasses per-organisation membership checks in collection access control. */
+export function isSuperadmin(req: PayloadRequest): boolean {
+  return req.user?.role === "superadmin";
 }
