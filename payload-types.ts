@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     users: User;
     organisations: Organisation;
+    'api-keys': ApiKey;
     'wordpress-connections': WordpressConnection;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -79,6 +80,7 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     organisations: OrganisationsSelect<false> | OrganisationsSelect<true>;
+    'api-keys': ApiKeysSelect<false> | ApiKeysSelect<true>;
     'wordpress-connections': WordpressConnectionsSelect<false> | WordpressConnectionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -128,9 +130,6 @@ export interface User {
   role: 'superadmin' | 'customer';
   updatedAt: string;
   createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -167,6 +166,18 @@ export interface Organisation {
         id?: string | null;
       }[]
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "api-keys".
+ */
+export interface ApiKey {
+  id: number;
+  user: number | User;
+  name: string;
+  hashedKey: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -228,6 +239,10 @@ export interface PayloadLockedDocument {
         value: number | Organisation;
       } | null)
     | ({
+        relationTo: 'api-keys';
+        value: number | ApiKey;
+      } | null)
+    | ({
         relationTo: 'wordpress-connections';
         value: number | WordpressConnection;
       } | null);
@@ -281,9 +296,6 @@ export interface UsersSelect<T extends boolean = true> {
   role?: T;
   updatedAt?: T;
   createdAt?: T;
-  enableAPIKey?: T;
-  apiKey?: T;
-  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;
@@ -312,6 +324,17 @@ export interface OrganisationsSelect<T extends boolean = true> {
         role?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "api-keys_select".
+ */
+export interface ApiKeysSelect<T extends boolean = true> {
+  user?: T;
+  name?: T;
+  hashedKey?: T;
   updatedAt?: T;
   createdAt?: T;
 }
