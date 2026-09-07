@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getPayloadClient } from "./payload";
+import { createOrganisationForUser } from "./organisation";
 import { clearSessionCookie, setSessionCookie } from "./session";
 
 export interface AuthState {
@@ -34,13 +35,19 @@ export async function signupAction(_prevState: AuthState, formData: FormData): P
   }
   const { email, password } = parsed.data;
   const redirectTo = safeRedirectTarget(formData.get("redirectTo"));
+  const organisationNameRaw = formData.get("organisationName");
+  const organisationName = typeof organisationNameRaw === "string" ? organisationNameRaw.trim() : "";
 
   const payload = await getPayloadClient();
+  let userId: string;
   try {
-    await payload.create({ collection: "users", data: { email, password } });
+    const user = await payload.create({ collection: "users", data: { email, password } });
+    userId = String(user.id);
   } catch {
     return { error: "Could not create an account with that email." };
   }
+
+  await createOrganisationForUser(userId, organisationName);
 
   const result = await payload.login({ collection: "users", data: { email, password } });
   if (!result.token) {

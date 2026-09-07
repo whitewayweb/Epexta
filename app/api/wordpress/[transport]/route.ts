@@ -10,7 +10,30 @@ import {
   type WordPressCredentials,
 } from "@/modules/wordpress/client";
 import { getWordPressConnection } from "@/modules/wordpress/organisation";
-import { runSeoChecks } from "@/modules/wordpress/seo-check";
+import { runSeoChecks, type SeoCheckResult } from "@/modules/wordpress/seo-check";
+
+// Checks whose fixes touch images (alt text, "add some images") are deliberately excluded
+// here since images are handled separately via set_featured_image, not this text-content
+// SEO pass - see the create_post/update_post tool descriptions.
+const IMAGE_RELATED_CHECK_IDS = new Set(["images", "keyphrase-in-image-alt"]);
+
+// runSeoChecks() only informs the LLM if it happens to read the returned JSON. Surfacing
+// the "bad" checks as an explicit instruction (with the postId to act on) makes it far
+// more likely the calling LLM actually loops back with update_post instead of treating a
+// successful create/update as "done" regardless of SEO quality.
+function seoFollowUpNote(seoCheck: SeoCheckResult, postId: number): string | undefined {
+  const actionable = seoCheck.checks.filter(
+    (c) => c.status === "bad" && !IMAGE_RELATED_CHECK_IDS.has(c.id)
+  );
+  if (actionable.length === 0) return undefined;
+  return (
+    `SEO action required before this post is done: ${actionable.length} check(s) failed. ` +
+    "Fix these now by calling update_post with postId " +
+    postId +
+    " and revised fields, then re-check: " +
+    actionable.map((c) => `[${c.id}] ${c.message}`).join(" ")
+  );
+}
 
 // Shared by creation and editing so both tools expose the same editorial guidance.
 const articleWritingGuidance = [
@@ -135,7 +158,7 @@ const rawHandler = createMcpHandler(
       description: "List existing categories on the connected WordPress site.",
       inputSchema: {},
     },
-    async (extra) => {
+    async (_args, extra) => {
       try {
         const client = clientFromExtra(extra);
         return textResult(await client.listCategories());
@@ -152,7 +175,7 @@ const rawHandler = createMcpHandler(
       description: "List existing tags on the connected WordPress site.",
       inputSchema: {},
     },
-    async (extra) => {
+    async (_args, extra) => {
       try {
         const client = clientFromExtra(extra);
         return textResult(await client.listTags());
@@ -167,7 +190,8 @@ const rawHandler = createMcpHandler(
     {
       title: "Create Blog Post",
       description:
-        "Create a new blog post on the connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. Include an internal link (<a href>) to a verified relevant page on the same site when one is available, and use an <img> with accurate descriptive alt text when an image is appropriate. " +
+        "Create a new blog post on the connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
+        "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. Use an <img> with accurate descriptive alt text when an image is appropriate. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via set_featured_image. " +
         articleWritingGuidance,
       inputSchema: {
         title: z.string().describe("Post title."),
@@ -216,7 +240,8 @@ const rawHandler = createMcpHandler(
         const client = clientFromExtra(extra);
         const { post, warnings } = await client.createPost(input);
         const seoCheck = runSeoChecks(input);
-        return textResult({ post, warnings, seoCheck });
+        const seoFollowUp = seoFollowUpNote(seoCheck, post.id);
+        return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
       } catch (e) {
         return errorResult(e);
       }
@@ -228,7 +253,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Update Blog Post",
       description:
-        "Update fields on an existing post: content, categories, tags, SEO meta, slug, or status. Only fields provided are changed. Apply the following writing guidance only when drafting or rewriting content, not for metadata-only edits. " +
+        "Update fields on an existing post: content, categories, tags, SEO meta, slug, or status. Only fields provided are changed. When contentHtml is being rewritten, apply the same standards as create_post: call list_posts first and include at least one relevant internal link when one exists, keep at least one <h2>/<h3> subheading carrying the focus keyphrase (unless too short for subheadings), keep seoDescription to 156 characters or fewer, and check the returned seoCheck for problems other than image-related ones before finishing. The following writing guidance also applies only when drafting or rewriting content, not for metadata-only edits. " +
         articleWritingGuidance,
       inputSchema: {
         postId: z.number().int(),
@@ -252,7 +277,12 @@ const rawHandler = createMcpHandler(
         const client = clientFromExtra(extra);
         const { post, warnings } = await client.updatePost(postId, fields);
         const seoCheck = runSeoChecks(fields);
-        return textResult({ post, warnings, seoCheck });
+        // Only nag about SEO when this call actually touched a keyphrase-relevant field -
+        // otherwise a metadata-only edit (e.g. just status or tags) would falsely report
+        // "no focus keyphrase" every time, since fields here has no prior post state to
+        // compare against.
+        const seoFollowUp = fields.focusKeyphrase !== undefined ? seoFollowUpNote(seoCheck, postId) : undefined;
+        return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
       } catch (e) {
         return errorResult(e);
       }

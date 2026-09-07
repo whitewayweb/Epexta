@@ -32,6 +32,18 @@ export function SignupForm({ redirectTo }: { redirectTo?: string }) {
             autoComplete="new-password"
           />
         </div>
+        <div className="grid gap-2">
+          <Label htmlFor="organisationName">
+            Organisation name <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="organisationName"
+            type="text"
+            name="organisationName"
+            autoComplete="organization"
+            placeholder="e.g. Acme Health — leave blank to use your name"
+          />
+        </div>
         {state.error && <p className="text-sm text-destructive">{state.error}</p>}
         <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Please wait…" : "Create account"}

@@ -25,12 +25,24 @@ export async function getUserOrganisation(userId: string): Promise<OrganisationM
   return { organisationId: String(doc.id), role: member.role };
 }
 
-/** Creates a new organisation with this user as its sole admin. */
+/**
+ * Creates a new organisation with this user as its sole admin. If no name is given (or it's
+ * blank), defaults to the local part of the user's email so every organisation gets a usable
+ * display name regardless of which flow created it.
+ */
 export async function createOrganisationForUser(userId: string, name?: string): Promise<string> {
   const payload = await getPayloadClient();
+  const trimmed = name?.trim();
+
+  let resolvedName = trimmed;
+  if (!resolvedName) {
+    const user = await payload.findByID({ collection: "users", id: userId, overrideAccess: true });
+    resolvedName = user.email.split("@")[0];
+  }
+
   const doc = await payload.create({
     collection: "organisations",
-    data: { name, members: [{ user: Number(userId), role: "admin" }] },
+    data: { name: resolvedName, members: [{ user: Number(userId), role: "admin" }] },
     overrideAccess: true,
   });
   return String(doc.id);

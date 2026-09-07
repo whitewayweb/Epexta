@@ -172,7 +172,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     const yoastMeta = buildYoastMeta(input);
     if (Object.keys(yoastMeta).length > 0) body.meta = yoastMeta;
 
-    const post = await wpFetch<{ meta?: Record<string, unknown> }>(`/wp/v2/posts`, {
+    const post = await wpFetch<{ id: number; meta?: Record<string, unknown> }>(`/wp/v2/posts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -203,7 +203,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     const yoastMeta = buildYoastMeta(fields);
     if (Object.keys(yoastMeta).length > 0) body.meta = yoastMeta;
 
-    const post = await wpFetch<{ meta?: Record<string, unknown> }>(`/wp/v2/posts/${postId}`, {
+    const post = await wpFetch<{ id: number; meta?: Record<string, unknown> }>(`/wp/v2/posts/${postId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
