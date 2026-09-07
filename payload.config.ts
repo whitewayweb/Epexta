@@ -11,6 +11,23 @@ import { WordPressConnections } from "./modules/wordpress/collection";
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
+// Neon connection strings include `sslmode=require`, which pg-connection-string
+// warns will lose its current meaning in a future major version. Strip it and set
+// `ssl` explicitly on the pool instead, so the warning stops without changing behavior.
+function getDatabasePoolConfig() {
+  const raw = process.env.DATABASE_URL || "";
+  if (!raw) return { connectionString: raw };
+
+  const url = new URL(raw);
+  const hadSslmode = url.searchParams.has("sslmode");
+  url.searchParams.delete("sslmode");
+
+  return {
+    connectionString: url.toString(),
+    ssl: hadSslmode ? { rejectUnauthorized: true } : undefined,
+  };
+}
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -25,9 +42,7 @@ export default buildConfig({
     outputFile: path.resolve(dirname, "payload-types.ts"),
   },
   db: postgresAdapter({
-    pool: {
-      connectionString: process.env.DATABASE_URL || "",
-    },
+    pool: getDatabasePoolConfig(),
     transactionOptions: false,
   }),
   routes: {
