@@ -5,6 +5,7 @@ import { getUserOrganisation } from "@/lib/organisation";
 import { getUserByApiKey } from "@/lib/session";
 import { createWordPressClient, type WordPressClient, type WordPressCredentials } from "@/modules/wordpress/client";
 import { getWordPressConnection } from "@/modules/wordpress/organisation";
+import { runSeoChecks } from "@/modules/wordpress/seo-check";
 
 // Shared by creation and editing so both tools expose the same editorial guidance.
 const articleWritingGuidance = [
@@ -175,7 +176,7 @@ const rawHandler = createMcpHandler(
           .string()
           .optional()
           .describe(
-            "Yoast focus keyphrase for this post. Drives Yoast's on-page SEO analysis (keyphrase density, and presence in the title, introduction, subheading, meta description, and slug). Should be a short phrase (2-4 words) a reader would actually search for, and should not repeat a keyphrase already used on another post on this site."
+            "Yoast focus keyphrase for this post. Drives Yoast's on-page SEO analysis (keyphrase density, and presence in the title, introduction, subheading, meta description, and slug). Should be a short phrase (2-4 words) a reader would actually search for, and should not repeat a keyphrase already used on another post on this site. SEO meta fields only take effect if the target WordPress site has those keys registered for REST access; check the returned warnings array for a note if they were dropped."
           ),
         slug: z
           .string()
@@ -186,8 +187,9 @@ const rawHandler = createMcpHandler(
     async (input, extra) => {
       try {
         const client = clientFromExtra(extra);
-        const post = await client.createPost(input);
-        return textResult(post);
+        const { post, warnings } = await client.createPost(input);
+        const seoCheck = runSeoChecks(input);
+        return textResult({ post, warnings, seoCheck });
       } catch (e) {
         return errorResult(e);
       }
@@ -221,8 +223,9 @@ const rawHandler = createMcpHandler(
     async ({ postId, ...fields }, extra) => {
       try {
         const client = clientFromExtra(extra);
-        const post = await client.updatePost(postId, fields);
-        return textResult(post);
+        const { post, warnings } = await client.updatePost(postId, fields);
+        const seoCheck = runSeoChecks(fields);
+        return textResult({ post, warnings, seoCheck });
       } catch (e) {
         return errorResult(e);
       }
@@ -241,8 +244,32 @@ const rawHandler = createMcpHandler(
     async ({ postId }, extra) => {
       try {
         const client = clientFromExtra(extra);
-        const post = await client.publishPost(postId);
-        return textResult(post);
+        const { post, warnings } = await client.publishPost(postId);
+        return textResult({ post, warnings });
+      } catch (e) {
+        return errorResult(e);
+      }
+    }
+  );
+
+  server.registerTool(
+    "check_seo",
+    {
+      title: "Check SEO",
+      description:
+        "Run an on-page SEO analysis (equivalent to Yoast SEO's core checks: keyphrase presence in title, introduction, subheadings, meta description, and slug; keyphrase density; content length; links; image alt text) against draft content before publishing. Use this before create_post or update_post to catch problems while they're still easy to fix, since WordPress/Yoast only compute this analysis inside the block editor UI, not automatically for API-created posts.",
+      inputSchema: {
+        title: z.string().optional(),
+        contentHtml: z.string().optional().describe("Post body HTML to analyze."),
+        focusKeyphrase: z.string().optional(),
+        seoTitle: z.string().optional(),
+        seoDescription: z.string().optional(),
+        slug: z.string().optional(),
+      },
+    },
+    async (input) => {
+      try {
+        return textResult(runSeoChecks(input));
       } catch (e) {
         return errorResult(e);
       }

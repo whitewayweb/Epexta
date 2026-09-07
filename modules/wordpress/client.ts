@@ -68,12 +68,33 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     return created.id;
   }
 
-  function resolveCategoryIds(names: string[]): Promise<number[]> {
-    return Promise.all(names.map((n) => findOrCreateTerm("categories", n)));
+  interface ResolvedTerms {
+    ids: number[];
+    warnings: string[];
   }
 
-  function resolveTagIds(names: string[]): Promise<number[]> {
-    return Promise.all(names.map((n) => findOrCreateTerm("tags", n)));
+  async function resolveTermIdsSafe(taxonomyPath: "categories" | "tags", names: string[]): Promise<ResolvedTerms> {
+    const singular = taxonomyPath === "categories" ? "category" : "tag";
+    const results = await Promise.allSettled(names.map((n) => findOrCreateTerm(taxonomyPath, n)));
+    const ids: number[] = [];
+    const warnings: string[] = [];
+    results.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        ids.push(result.value);
+      } else {
+        const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        warnings.push(`Could not create/assign ${singular} "${names[i]}": ${reason}`);
+      }
+    });
+    return { ids, warnings };
+  }
+
+  function resolveCategoryIds(names: string[]): Promise<ResolvedTerms> {
+    return resolveTermIdsSafe("categories", names);
+  }
+
+  function resolveTagIds(names: string[]): Promise<ResolvedTerms> {
+    return resolveTermIdsSafe("tags", names);
   }
 
   function listPosts(params: { status?: string; perPage?: number; search?: string }) {
@@ -93,11 +114,46 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     return wpFetch(`/wp/v2/tags?per_page=100&_fields=id,name,slug,count`);
   }
 
+  const YOAST_META_KEYS: Record<"seoTitle" | "seoDescription" | "focusKeyphrase", string> = {
+    seoTitle: "_yoast_wpseo_title",
+    seoDescription: "_yoast_wpseo_metadesc",
+    focusKeyphrase: "_yoast_wpseo_focuskw",
+  };
+
+  function buildYoastMeta(fields: Pick<Partial<CreatePostInput>, "seoTitle" | "seoDescription" | "focusKeyphrase">) {
+    const meta: Record<string, string> = {};
+    if (fields.seoTitle) meta[YOAST_META_KEYS.seoTitle] = fields.seoTitle;
+    if (fields.seoDescription) meta[YOAST_META_KEYS.seoDescription] = fields.seoDescription;
+    if (fields.focusKeyphrase) meta[YOAST_META_KEYS.focusKeyphrase] = fields.focusKeyphrase;
+    return meta;
+  }
+
+  // WordPress silently drops any meta key that isn't registered with
+  // register_post_meta(..., ['show_in_rest' => true]) on the site itself - the
+  // request still succeeds, so this is the only way to detect it didn't take.
+  function checkYoastMetaPersisted(
+    requestedMeta: Record<string, string>,
+    savedPost: { meta?: Record<string, unknown> }
+  ): string[] {
+    const warnings: string[] = [];
+    const savedMeta = savedPost.meta ?? {};
+    for (const [key, value] of Object.entries(requestedMeta)) {
+      if (savedMeta[key] !== value) {
+        warnings.push(
+          `WordPress did not save the "${key}" meta field (Yoast SEO data). The target site needs those keys ` +
+            `registered for REST access via register_post_meta() - see README.md for a ready-to-use mu-plugin snippet.`
+        );
+      }
+    }
+    return warnings;
+  }
+
   async function createPost(input: CreatePostInput) {
-    const [categories, tags] = await Promise.all([
+    const [categoryResult, tagResult] = await Promise.all([
       input.categoryNames?.length ? resolveCategoryIds(input.categoryNames) : Promise.resolve(undefined),
       input.tagNames?.length ? resolveTagIds(input.tagNames) : Promise.resolve(undefined),
     ]);
+    const warnings = [...(categoryResult?.warnings ?? []), ...(tagResult?.warnings ?? [])];
 
     const body: Record<string, unknown> = {
       title: input.title,
@@ -106,28 +162,30 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     };
     if (input.excerpt) body.excerpt = input.excerpt;
     if (input.slug) body.slug = input.slug;
-    if (categories) body.categories = categories;
-    if (tags) body.tags = tags;
-    if (input.seoTitle || input.seoDescription || input.focusKeyphrase) {
-      body.meta = {
-        ...(input.seoTitle ? { _yoast_wpseo_title: input.seoTitle } : {}),
-        ...(input.seoDescription ? { _yoast_wpseo_metadesc: input.seoDescription } : {}),
-        ...(input.focusKeyphrase ? { _yoast_wpseo_focuskw: input.focusKeyphrase } : {}),
-      };
-    }
+    if (categoryResult?.ids.length) body.categories = categoryResult.ids;
+    if (tagResult?.ids.length) body.tags = tagResult.ids;
+    const yoastMeta = buildYoastMeta(input);
+    if (Object.keys(yoastMeta).length > 0) body.meta = yoastMeta;
 
-    return wpFetch(`/wp/v2/posts`, {
+    const post = await wpFetch<{ meta?: Record<string, unknown> }>(`/wp/v2/posts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
+    if (Object.keys(yoastMeta).length > 0) {
+      warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
+    }
+
+    return { post, warnings };
   }
 
   async function updatePost(postId: number, fields: Partial<CreatePostInput>) {
-    const [categories, tags] = await Promise.all([
+    const [categoryResult, tagResult] = await Promise.all([
       fields.categoryNames?.length ? resolveCategoryIds(fields.categoryNames) : Promise.resolve(undefined),
       fields.tagNames?.length ? resolveTagIds(fields.tagNames) : Promise.resolve(undefined),
     ]);
+    const warnings = [...(categoryResult?.warnings ?? []), ...(tagResult?.warnings ?? [])];
 
     const body: Record<string, unknown> = {};
     if (fields.title) body.title = fields.title;
@@ -135,21 +193,22 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     if (fields.status) body.status = fields.status;
     if (fields.excerpt) body.excerpt = fields.excerpt;
     if (fields.slug) body.slug = fields.slug;
-    if (categories) body.categories = categories;
-    if (tags) body.tags = tags;
-    if (fields.seoTitle || fields.seoDescription || fields.focusKeyphrase) {
-      body.meta = {
-        ...(fields.seoTitle ? { _yoast_wpseo_title: fields.seoTitle } : {}),
-        ...(fields.seoDescription ? { _yoast_wpseo_metadesc: fields.seoDescription } : {}),
-        ...(fields.focusKeyphrase ? { _yoast_wpseo_focuskw: fields.focusKeyphrase } : {}),
-      };
-    }
+    if (categoryResult?.ids.length) body.categories = categoryResult.ids;
+    if (tagResult?.ids.length) body.tags = tagResult.ids;
+    const yoastMeta = buildYoastMeta(fields);
+    if (Object.keys(yoastMeta).length > 0) body.meta = yoastMeta;
 
-    return wpFetch(`/wp/v2/posts/${postId}`, {
+    const post = await wpFetch<{ meta?: Record<string, unknown> }>(`/wp/v2/posts/${postId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+
+    if (Object.keys(yoastMeta).length > 0) {
+      warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
+    }
+
+    return { post, warnings };
   }
 
   function publishPost(postId: number) {
