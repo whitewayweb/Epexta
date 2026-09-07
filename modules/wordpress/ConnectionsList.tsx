@@ -24,9 +24,17 @@ function RemoveConnectionButton({ connectionId }: { connectionId: string }) {
   );
 }
 
-function ConnectionRow({ connection }: { connection: DisplayConnection }) {
-  const [editing, setEditing] = useState(false);
-
+function ConnectionRow({
+  connection,
+  editing,
+  onEdit,
+  onCancel,
+}: {
+  connection: DisplayConnection;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+}) {
   if (editing) {
     return (
       <div className="rounded-md border border-border/60 p-4">
@@ -36,7 +44,7 @@ function ConnectionRow({ connection }: { connection: DisplayConnection }) {
           label={connection.label}
           siteUrl={connection.siteUrl}
           username={connection.username}
-          onCancel={() => setEditing(false)}
+          onCancel={onCancel}
         />
       </div>
     );
@@ -51,7 +59,7 @@ function ConnectionRow({ connection }: { connection: DisplayConnection }) {
         </p>
       </div>
       <div className="flex shrink-0 gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
+        <Button type="button" variant="outline" size="sm" onClick={onEdit}>
           Edit
         </Button>
         <RemoveConnectionButton connectionId={connection.connectionId} />
@@ -60,7 +68,15 @@ function ConnectionRow({ connection }: { connection: DisplayConnection }) {
   );
 }
 
-export function ConnectionsList({ connections }: { connections: DisplayConnection[] }) {
+export function ConnectionsList({
+  connections,
+  initialEditId,
+}: {
+  connections: DisplayConnection[];
+  initialEditId?: string;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(initialEditId ?? null);
+
   if (connections.length === 0) {
     return <p className="text-sm text-muted-foreground">No WordPress sites connected yet.</p>;
   }
@@ -68,7 +84,13 @@ export function ConnectionsList({ connections }: { connections: DisplayConnectio
   return (
     <div className="flex max-w-md flex-col gap-3">
       {connections.map((connection) => (
-        <ConnectionRow key={connection.connectionId} connection={connection} />
+        <ConnectionRow
+          key={connection.connectionId}
+          connection={connection}
+          editing={editingId === connection.connectionId}
+          onEdit={() => setEditingId(connection.connectionId)}
+          onCancel={() => setEditingId(null)}
+        />
       ))}
     </div>
   );

@@ -1,23 +1,20 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
-import { logoutAction } from "@/lib/auth-actions";
-import { getOrganisationMembers, getUserOrganisation } from "@/lib/organisation";
-import { Button } from "@/components/ui/button";
+import { getUserOrganisation } from "@/lib/organisation";
+import { requireUser } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiKeyPanel } from "@/modules/wordpress/ApiKeyPanel";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
 import { ConnectionsList, type DisplayConnection } from "@/modules/wordpress/ConnectionsList";
-import { MembersPanel } from "@/modules/wordpress/MembersPanel";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 
 const CONNECT_PATH = "/wordpress/connect";
 
-export default async function ConnectPage() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect(`/login?redirectTo=${encodeURIComponent(CONNECT_PATH)}`);
-  }
+export default async function ConnectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string }>;
+}) {
+  const user = await requireUser(CONNECT_PATH);
+  const { edit } = await searchParams;
 
   const organisation = await getUserOrganisation(user.id);
   const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
@@ -28,16 +25,8 @@ export default async function ConnectPage() {
   );
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-10">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Connect your WordPress sites</h1>
-        <form action={logoutAction}>
-          <input type="hidden" name="redirectTo" value={CONNECT_PATH} />
-          <Button type="submit" variant="outline" size="sm">
-            Log out ({user.email})
-          </Button>
-        </form>
-      </div>
+    <div className="mx-auto flex max-w-3xl flex-col gap-8">
+      <h1 className="text-2xl font-semibold tracking-tight">Connect your WordPress sites</h1>
 
       {!organisation && (
         <Card>
@@ -61,19 +50,11 @@ export default async function ConnectPage() {
               <CardTitle>Connected sites</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <ConnectionsList connections={displayConnections} />
+              <ConnectionsList connections={displayConnections} initialEditId={edit} />
               <div className="border-t border-border/60 pt-6">
                 <h3 className="mb-3 text-sm font-medium">Add another site</h3>
                 <ConnectionForm mode="add" />
               </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Members</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MembersPanel members={await getOrganisationMembers(organisation.organisationId)} />
             </CardContent>
           </Card>
         </>
@@ -116,6 +97,6 @@ export default async function ConnectPage() {
           <ApiKeyPanel />
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }
