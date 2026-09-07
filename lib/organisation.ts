@@ -1,4 +1,4 @@
-import { findMember, memberUserId, type MemberRow, type OrganisationRole } from "./members";
+import { findMember, memberUserId, toMemberInput, type MemberRow, type OrganisationRole } from "./members";
 import { getPayloadClient } from "./payload";
 
 export interface OrganisationMembership {
@@ -87,7 +87,7 @@ export async function addOrganisationMember(
   await payload.update({
     collection: "organisations",
     id: organisationId,
-    data: { members: [...members, { user: Number(userId), role }] },
+    data: { members: [...members.map(toMemberInput), { user: Number(userId), role }] },
     overrideAccess: true,
   });
   return { ok: true };
@@ -109,7 +109,7 @@ export async function removeOrganisationMember(
   await payload.update({
     collection: "organisations",
     id: organisationId,
-    data: { members: remaining },
+    data: { members: remaining.map(toMemberInput) },
     overrideAccess: true,
   });
   return { ok: true };

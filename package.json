@@ -2,6 +2,7 @@
   "name": "wp-chatgpt-publisher",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "knip": "knip",
-    "payload": "payload"
+    "payload": "payload",
+    "migrate:create": "payload migrate:create",
+    "migrate": "payload migrate"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

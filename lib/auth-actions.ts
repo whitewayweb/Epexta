@@ -41,7 +41,9 @@ export async function signupAction(_prevState: AuthState, formData: FormData): P
   const payload = await getPayloadClient();
   let userId: string;
   try {
-    const user = await payload.create({ collection: "users", data: { email, password } });
+    // `role` is required by the generated type; the collection's beforeChange hook
+    // (Users.ts) overwrites it regardless (superadmin only for the bootstrap first user).
+    const user = await payload.create({ collection: "users", data: { email, password, role: "customer" } });
     userId = String(user.id);
   } catch {
     return { error: "Could not create an account with that email." };

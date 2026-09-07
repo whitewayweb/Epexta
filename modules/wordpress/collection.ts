@@ -26,7 +26,7 @@ export const WordPressConnections: CollectionConfig = {
   slug: "wordpress-connections",
   admin: {
     useAsTitle: "siteUrl",
-    description: "One WordPress site per organisation.",
+    description: "WordPress sites connected to an organisation. An organisation may connect more than one.",
   },
   access: {
     read: async ({ req }) => {
@@ -52,8 +52,12 @@ export const WordPressConnections: CollectionConfig = {
       type: "relationship",
       relationTo: "organisations",
       required: true,
-      unique: true,
       admin: { position: "sidebar" },
+    },
+    {
+      name: "label",
+      type: "text",
+      admin: { description: "Optional nickname to tell this site apart from others, e.g. \"Main blog\"." },
     },
     {
       name: "siteUrl",

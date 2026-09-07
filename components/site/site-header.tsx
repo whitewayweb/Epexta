@@ -34,7 +34,7 @@ export async function SiteHeader() {
           {user ? (
             <>
               <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
-              <Button variant="ghost" render={<Link href="/wordpress/connect" />}>
+              <Button variant="ghost" render={<Link href="/wordpress" />}>
                 Dashboard
               </Button>
               <form action={logoutAction}>
