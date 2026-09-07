@@ -3,7 +3,12 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { getUserOrganisation } from "@/lib/organisation";
 import { getUserByApiKey } from "@/lib/session";
-import { createWordPressClient, type WordPressClient, type WordPressCredentials } from "@/modules/wordpress/client";
+import {
+  createWordPressClient,
+  WordPressApiError,
+  type WordPressClient,
+  type WordPressCredentials,
+} from "@/modules/wordpress/client";
 import { getWordPressConnection } from "@/modules/wordpress/organisation";
 import { runSeoChecks } from "@/modules/wordpress/seo-check";
 
@@ -36,10 +41,24 @@ function textResult(data: unknown) {
   };
 }
 
+// Errors thrown deliberately by our own code, with a message that's already safe and
+// useful to hand back to the calling LLM (as opposed to an unexpected exception from
+// the database, encryption, or network layers, whose raw message might describe
+// internal infrastructure and should never reach the client).
+class ToolError extends Error {}
+
 function errorResult(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+  // ToolError (our own deliberate, user-facing messages) and WordPressApiError (the
+  // target site's own response) are both safe to relay to the calling LLM verbatim.
+  // Anything else is unexpected - log it for us, but never echo its raw message back,
+  // since it could describe our database, encryption, or network internals.
+  if (error instanceof ToolError || error instanceof WordPressApiError) {
+    return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
+  }
+
+  console.error("[wordpress-mcp] tool call threw an unexpected error:", error);
   return {
-    content: [{ type: "text" as const, text: `Error: ${message}` }],
+    content: [{ type: "text" as const, text: "Error: Something went wrong while processing this request." }],
     isError: true,
   };
 }
@@ -47,28 +66,36 @@ function errorResult(error: unknown) {
 async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
 
-  const user = await getUserByApiKey(bearerToken);
-  if (!user) return undefined;
+  try {
+    const user = await getUserByApiKey(bearerToken);
+    if (!user) {
+      console.error("[wordpress-mcp] auth failed: no user for that API key");
+      return undefined;
+    }
 
-  const organisation = await getUserOrganisation(user.id);
-  if (!organisation) return undefined;
+    // Authentication only proves who the caller is. Whether they have an organisation
+    // or a connected WordPress site yet is a separate, non-fatal condition - surfaced
+    // to the LLM as a clear tool-call error (see clientFromExtra) rather than a generic
+    // 401, so it can tell the user what to do instead of just "unauthorized".
+    const organisation = await getUserOrganisation(user.id);
+    const connection = organisation ? await getWordPressConnection(organisation.organisationId) : null;
+    const credentials: WordPressCredentials | undefined = connection
+      ? { siteUrl: connection.siteUrl, username: connection.username, appPassword: connection.appPassword }
+      : undefined;
 
-  const connection = await getWordPressConnection(organisation.organisationId);
-  if (!connection) return undefined;
-
-  const credentials: WordPressCredentials = {
-    siteUrl: connection.siteUrl,
-    username: connection.username,
-    appPassword: connection.appPassword,
-  };
-
-  return { token: bearerToken, clientId: user.id, scopes: [], extra: { credentials } };
+    return { token: bearerToken, clientId: user.id, scopes: [], extra: { credentials } };
+  } catch (error) {
+    console.error("[wordpress-mcp] auth threw an error:", error);
+    return undefined;
+  }
 }
 
 function clientFromExtra(extra: { authInfo?: AuthInfo }): WordPressClient {
   const credentials = extra.authInfo?.extra?.credentials as WordPressCredentials | undefined;
   if (!credentials) {
-    throw new Error("No WordPress connection found for this API key.");
+    throw new ToolError(
+      "No WordPress site is connected to this account yet. Visit /wordpress/connect to connect one, then try again."
+    );
   }
   return createWordPressClient(credentials);
 }
@@ -298,10 +325,10 @@ const rawHandler = createMcpHandler(
       try {
         const client = clientFromExtra(extra);
         if (!imageUrl && !imageBase64) {
-          throw new Error("Provide either imageUrl or imageBase64.");
+          throw new ToolError("Provide either imageUrl or imageBase64.");
         }
         if (imageUrl && imageBase64) {
-          throw new Error("Provide only one of imageUrl or imageBase64, not both.");
+          throw new ToolError("Provide only one of imageUrl or imageBase64, not both.");
         }
 
         const media = imageUrl

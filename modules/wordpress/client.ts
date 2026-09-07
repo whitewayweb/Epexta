@@ -1,3 +1,8 @@
+// Describes a failure from the target WordPress site itself (bad credentials, invalid
+// post ID, unreachable image URL, etc.) - safe to relay to a calling LLM verbatim,
+// since it only ever contains that site's own response, never our own internals.
+export class WordPressApiError extends Error {}
+
 export interface WpTerm {
   id: number;
   name: string;
@@ -45,7 +50,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`WordPress API error ${res.status} on ${path}: ${body}`);
+      throw new WordPressApiError(`WordPress API error ${res.status} on ${path}: ${body}`);
     }
 
     if (res.status === 204) return null as T;
@@ -239,7 +244,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
   async function uploadMediaFromUrl(imageUrl: string, filename: string, altText?: string) {
     const imgRes = await fetch(imageUrl);
     if (!imgRes.ok) {
-      throw new Error(`Could not fetch image from ${imageUrl}: ${imgRes.status}`);
+      throw new WordPressApiError(`Could not fetch image from ${imageUrl}: ${imgRes.status}`);
     }
     const contentType = imgRes.headers.get("content-type") ?? "image/png";
     const buffer = Buffer.from(await imgRes.arrayBuffer());
