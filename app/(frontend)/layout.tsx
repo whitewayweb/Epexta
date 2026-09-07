@@ -8,9 +8,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Epexta — Connect ChatGPT and Claude to WordPress",
+  title: "Epexta: Connect ChatGPT and Claude to WordPress",
   description:
-    "Epexta is an MCP server platform that lets ChatGPT and Claude publish, manage, and update your WordPress sites — securely, per organisation.",
+    "Epexta is an MCP server platform that lets ChatGPT and Claude publish, manage, and update your WordPress sites, securely, per organisation.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

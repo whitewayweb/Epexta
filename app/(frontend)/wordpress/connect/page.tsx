@@ -40,7 +40,7 @@ export default async function ConnectPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              You don&apos;t have a WordPress site connected yet. Add one below — you&apos;ll become its admin.
+              You don&apos;t have a WordPress site connected yet. Add one below and you&apos;ll become its admin.
             </p>
             <ConnectionForm siteUrl="" username="" />
           </CardContent>

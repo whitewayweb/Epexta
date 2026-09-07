@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoMark } from "@/components/site/logo-mark";
 import { Button } from "@/components/ui/button";
 import { logoutAction } from "@/lib/auth-actions";
 import { getCurrentUser } from "@/lib/session";
@@ -16,11 +17,9 @@ export async function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm text-primary-foreground">
-            E
-          </span>
-          Epexta
+        <Link href="/" className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+          <LogoMark />
+          epexta
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">

@@ -41,7 +41,7 @@ export function SignupForm({ redirectTo }: { redirectTo?: string }) {
             type="text"
             name="organisationName"
             autoComplete="organization"
-            placeholder="e.g. Acme Health — leave blank to use your name"
+            placeholder="e.g. Acme Health (leave blank to use your name)"
           />
         </div>
         {state.error && <p className="text-sm text-destructive">{state.error}</p>}

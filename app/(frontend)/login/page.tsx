@@ -26,7 +26,7 @@ export default async function LoginPage({
             Epexta
           </Link>
           <CardTitle className="text-2xl">Log in</CardTitle>
-          <CardDescription>Welcome back — enter your details to continue.</CardDescription>
+          <CardDescription>Welcome back. Enter your details to continue.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm redirectTo={redirectTo} />

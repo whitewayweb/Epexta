@@ -44,7 +44,7 @@ export function MembersPanel({ members }: { members: PopulatedMember[] }) {
       {inviteState.error && <p className="mt-2 text-sm text-destructive">{inviteState.error}</p>}
       {inviteState.success && <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">Invited.</p>}
       <p className="mt-2 text-xs text-muted-foreground">
-        The invited person must already have an account (sign up at /connect first) — they&apos;ll only be able to
+        The invited person must already have an account (sign up at /connect first). They&apos;ll only be able to
         use the ChatGPT tools against this site, not edit the connection.
       </p>
     </div>
