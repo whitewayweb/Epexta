@@ -45,6 +45,11 @@ export default buildConfig({
   db: postgresAdapter({
     pool: getDatabasePoolConfig(),
     transactionOptions: false,
+    // Dev-mode auto-push writes a "dev" marker into payload_migrations that makes
+    // `payload migrate` prompt for confirmation on every future run, forever. Schema
+    // changes always go through committed migration files instead (migrate:create,
+    // then migrate) - the same path production already uses via the Vercel build command.
+    push: false,
   }),
   routes: {
     api: "/api/cms",

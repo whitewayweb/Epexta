@@ -28,16 +28,15 @@ export async function listApiKeys(userId: string): Promise<DisplayApiKey[]> {
   return result.docs.map(toDisplay);
 }
 
-/** Creates a new key for the user and returns the raw value - shown once, never stored. */
-export async function createApiKey(userId: string, name: string): Promise<{ key: DisplayApiKey; rawKey: string }> {
+/** Stores a key generated client-side (see api-keys-table.tsx) under this name. */
+export async function createApiKey(userId: string, name: string, rawKey: string): Promise<DisplayApiKey> {
   const payload = await getPayloadClient();
-  const rawKey = crypto.randomBytes(32).toString("hex");
   const doc = await payload.create({
     collection: "api-keys",
     data: { user: Number(userId), name, hashedKey: hashKey(rawKey) },
     overrideAccess: true,
   });
-  return { key: toDisplay(doc), rawKey };
+  return toDisplay(doc);
 }
 
 export async function deleteApiKey(userId: string, keyId: string): Promise<void> {

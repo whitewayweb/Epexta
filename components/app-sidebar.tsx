@@ -53,6 +53,7 @@ export function AppSidebar({ email }: { email: string }) {
                 <SidebarMenuItem key={module.slug}>
                   <SidebarMenuButton
                     isActive={pathname === module.overviewPath || pathname.startsWith(`${module.connectPath}`)}
+                    className="hover:bg-sidebar-accent/60"
                     render={<Link href={module.overviewPath} />}
                   >
                     <ModuleIcon slug={module.slug} />
@@ -70,7 +71,11 @@ export function AppSidebar({ email }: { email: string }) {
             <SidebarMenu>
               {SETTINGS_LINKS.map((link) => (
                 <SidebarMenuItem key={link.href}>
-                  <SidebarMenuButton isActive={pathname === link.href} render={<Link href={link.href} />}>
+                  <SidebarMenuButton
+                    isActive={pathname === link.href}
+                    className="hover:bg-sidebar-accent/60"
+                    render={<Link href={link.href} />}
+                  >
                     <link.icon />
                     <span>{link.label}</span>
                   </SidebarMenuButton>

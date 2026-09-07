@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Plus, Trash2 } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,11 +28,21 @@ interface ApiKeyRow {
   createdAt: string;
 }
 
-const createInitialState: CreateApiKeyState = { error: null, key: null, rawKey: null };
+const createInitialState: CreateApiKeyState = { error: null, key: null };
 const deleteInitialState: DeleteApiKeyState = { error: null, success: false };
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  // A fixed locale (not the browser's) keeps this identical between server and
+  // client render output, avoiding a hydration mismatch.
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// Generated in the browser with the Web Crypto API so the key is already visible
+// (and copyable) the moment the dialog opens, instead of after a round trip to the
+// server just to name and store it.
+function generateRawKey(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function DeleteKeyButton({ keyId, onDeleted }: { keyId: string; onDeleted: (id: string) => void }) {
@@ -52,31 +62,59 @@ function DeleteKeyButton({ keyId, onDeleted }: { keyId: string; onDeleted: (id: 
   );
 }
 
+function CopyKeyButton({ rawKey }: { rawKey: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      aria-label="Copy key"
+      onClick={async () => {
+        await navigator.clipboard.writeText(rawKey);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {copied ? <Check /> : <Copy />}
+    </Button>
+  );
+}
+
 function CreateKeyForm({
   onCreated,
   onDone,
 }: {
-  onCreated: (key: ApiKeyRow, rawKey: string) => void;
+  onCreated: (key: ApiKeyRow) => void;
   onDone: () => void;
 }) {
+  const [rawKey] = useState(generateRawKey);
   const [state, formAction, pending] = useActionState(createApiKeyAction, createInitialState);
 
   useEffect(() => {
-    if (state.key && state.rawKey) onCreated(state.key, state.rawKey);
+    if (state.key) onCreated(state.key);
     // Only react to a fresh action result, not to onCreated identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.key, state.rawKey]);
+  }, [state.key]);
 
-  if (state.key && state.rawKey) {
+  const keyField = (
+    <div className="flex items-center gap-2">
+      <code className="block flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
+        {rawKey}
+      </code>
+      <CopyKeyButton rawKey={rawKey} />
+    </div>
+  );
+
+  if (state.key) {
     return (
       <>
         <DialogHeader>
-          <DialogTitle>&quot;{state.key.name}&quot; created</DialogTitle>
+          <DialogTitle>&quot;{state.key.name}&quot; saved</DialogTitle>
           <DialogDescription>Copy this now, it won&apos;t be shown again.</DialogDescription>
         </DialogHeader>
-        <code className="block break-all rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
-          {state.rawKey}
-        </code>
+        {keyField}
         <DialogFooter>
           <Button onClick={onDone}>Done</Button>
         </DialogFooter>
@@ -86,27 +124,29 @@ function CreateKeyForm({
 
   return (
     <form action={formAction}>
+      <input type="hidden" name="rawKey" value={rawKey} />
       <DialogHeader>
         <DialogTitle>Add new key</DialogTitle>
-        <DialogDescription>
-          Name it after where you&apos;ll use it, e.g. &quot;ChatGPT connector&quot;.
-        </DialogDescription>
+        <DialogDescription>Copy it now, then name it so you can recognize it later.</DialogDescription>
       </DialogHeader>
-      <div className="grid gap-1.5 py-2">
-        <Label htmlFor="api-key-name">Name</Label>
-        <Input id="api-key-name" name="name" required autoFocus placeholder="e.g. ChatGPT connector" />
+      <div className="flex flex-col gap-3 py-2">
+        {keyField}
+        <div className="grid gap-1.5">
+          <Label htmlFor="api-key-name">Name</Label>
+          <Input id="api-key-name" name="name" required autoFocus placeholder="e.g. ChatGPT connector" />
+        </div>
       </div>
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       <DialogFooter>
         <Button type="submit" disabled={pending}>
-          {pending ? "Creating…" : "Create key"}
+          {pending ? "Saving…" : "Save"}
         </Button>
       </DialogFooter>
     </form>
   );
 }
 
-function CreateKeyDialog({ onCreated }: { onCreated: (key: ApiKeyRow, rawKey: string) => void }) {
+function CreateKeyDialog({ onCreated }: { onCreated: (key: ApiKeyRow) => void }) {
   const [open, setOpen] = useState(false);
   // Remounts the form (and its useActionState) each time the dialog opens, so a
   // previously-revealed key never reappears when adding another one.

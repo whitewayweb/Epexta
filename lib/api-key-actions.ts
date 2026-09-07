@@ -7,7 +7,6 @@ import { getCurrentUser } from "./session";
 export interface CreateApiKeyState {
   error: string | null;
   key: { id: string; name: string; createdAt: string } | null;
-  rawKey: string | null;
 }
 
 export interface DeleteApiKeyState {
@@ -16,6 +15,13 @@ export interface DeleteApiKeyState {
 }
 
 const nameSchema = z.string().trim().min(1, "Name is required.").max(100);
+// The raw key is generated client-side (crypto.getRandomValues, 32 bytes as hex) and
+// shown to the user before this action ever runs - this just checks it looks like that,
+// not a real secret the server is trusting blindly.
+const rawKeySchema = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-f]{32,}$/, "Invalid key.");
 
 export async function createApiKeyAction(
   _prevState: CreateApiKeyState,
@@ -23,16 +29,20 @@ export async function createApiKeyAction(
 ): Promise<CreateApiKeyState> {
   const user = await getCurrentUser();
   if (!user) {
-    return { error: "You must be logged in.", key: null, rawKey: null };
+    return { error: "You must be logged in.", key: null };
   }
 
-  const parsed = nameSchema.safeParse(formData.get("name"));
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid name.", key: null, rawKey: null };
+  const parsedName = nameSchema.safeParse(formData.get("name"));
+  if (!parsedName.success) {
+    return { error: parsedName.error.issues[0]?.message ?? "Invalid name.", key: null };
+  }
+  const parsedRawKey = rawKeySchema.safeParse(formData.get("rawKey"));
+  if (!parsedRawKey.success) {
+    return { error: "Invalid key. Reopen the dialog and try again.", key: null };
   }
 
-  const { key, rawKey } = await createApiKey(user.id, parsed.data);
-  return { error: null, key, rawKey };
+  const key = await createApiKey(user.id, parsedName.data, parsedRawKey.data);
+  return { error: null, key };
 }
 
 export async function deleteApiKeyAction(
