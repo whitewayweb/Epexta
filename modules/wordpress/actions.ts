@@ -1,6 +1,5 @@
 "use server";
 
-import crypto from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getPayloadClient } from "@/lib/payload";
@@ -18,17 +17,12 @@ export interface ConnectionState {
   success: boolean;
 }
 
-export interface ApiKeyState {
-  apiKey: string | null;
-  error: string | null;
-}
-
 export interface MemberActionState {
   error: string | null;
   success: boolean;
 }
 
-const connectionSchema = z.object({
+const connectionFields = {
   siteUrl: z
     .string()
     .trim()
@@ -36,8 +30,23 @@ const connectionSchema = z.object({
     .url("Enter a valid URL, e.g. https://example.com")
     .transform((value) => value.replace(/\/+$/, "")),
   username: z.string().trim().min(1, "WordPress username is required."),
-  appPassword: z.string().trim().min(1, "Application Password is required."),
   label: z.string().trim().optional(),
+};
+
+const connectionSchema = z.object({
+  ...connectionFields,
+  appPassword: z.string().trim().min(1, "Application Password is required."),
+});
+
+// Editing a connection shouldn't force re-entering the Application Password - leaving it
+// blank keeps whatever is already saved.
+const updateConnectionSchema = z.object({
+  ...connectionFields,
+  appPassword: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined)),
 });
 
 const inviteSchema = z.object({
@@ -50,6 +59,15 @@ function firstIssueMessage(error: z.ZodError): string {
 
 function parseConnectionForm(formData: FormData) {
   return connectionSchema.safeParse({
+    siteUrl: formData.get("siteUrl"),
+    username: formData.get("username"),
+    appPassword: formData.get("appPassword"),
+    label: formData.get("label"),
+  });
+}
+
+function parseUpdateConnectionForm(formData: FormData) {
+  return updateConnectionSchema.safeParse({
     siteUrl: formData.get("siteUrl"),
     username: formData.get("username"),
     appPassword: formData.get("appPassword"),
@@ -86,6 +104,7 @@ export async function addConnectionAction(
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
 
+  revalidatePath("/wordpress");
   revalidatePath("/wordpress/connect");
   return { error: null, success: true };
 }
@@ -109,7 +128,7 @@ export async function updateConnectionAction(
     return { error: "Missing connection.", success: false };
   }
 
-  const parsed = parseConnectionForm(formData);
+  const parsed = parseUpdateConnectionForm(formData);
   if (!parsed.success) {
     return { error: firstIssueMessage(parsed.error), success: false };
   }
@@ -120,6 +139,7 @@ export async function updateConnectionAction(
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
 
+  revalidatePath("/wordpress");
   revalidatePath("/wordpress/connect");
   return { error: null, success: true };
 }
@@ -149,29 +169,9 @@ export async function removeConnectionAction(
     return { error: "Could not remove the connection.", success: false };
   }
 
+  revalidatePath("/wordpress");
   revalidatePath("/wordpress/connect");
   return { error: null, success: true };
-}
-
-export async function generateApiKeyAction(
-  _prevState: ApiKeyState,
-  _formData: FormData
-): Promise<ApiKeyState> {
-  const user = await getCurrentUser();
-  if (!user) {
-    return { apiKey: null, error: "You must be logged in." };
-  }
-
-  const apiKey = crypto.randomBytes(32).toString("hex");
-  const payload = await getPayloadClient();
-  await payload.update({
-    collection: "users",
-    id: user.id,
-    data: { enableAPIKey: true, apiKey },
-    overrideAccess: true,
-  });
-
-  return { apiKey, error: null };
 }
 
 export async function inviteMemberAction(

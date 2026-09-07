@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getUserByApiKey as lookupUserByApiKey } from "./api-keys";
 import { getPayloadClient } from "./payload";
 
 const COOKIE_NAME = "payload-token";
@@ -49,14 +50,7 @@ export async function requireUser(redirectTo: string): Promise<SessionUser> {
   return user;
 }
 
-/** Resolves the user that owns this API key, or null if it's invalid/disabled. */
+/** Resolves the user that owns this API key, or null if it's invalid/revoked. */
 export async function getUserByApiKey(apiKey: string): Promise<SessionUser | null> {
-  const payload = await getPayloadClient();
-  const { user } = await payload.auth({
-    headers: new Headers({ Authorization: `users API-Key ${apiKey}` }),
-  });
-  if (!user) return null;
-
-  const record = user as unknown as { id: string | number; email: string };
-  return { id: String(record.id), email: record.email };
+  return lookupUserByApiKey(apiKey);
 }

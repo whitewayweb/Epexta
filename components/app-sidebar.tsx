@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, Users } from "lucide-react";
+import { KeyRound, LayoutDashboard, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/site/logo-mark";
@@ -26,6 +26,11 @@ function ModuleIcon({ slug, className }: { slug: ModuleDefinition["slug"]; class
   if (slug === "wordpress") return <WordPressIcon className={className} />;
   return <LayoutDashboard className={className} />;
 }
+
+const SETTINGS_LINKS = [
+  { href: "/settings/members", label: "Members", icon: Users },
+  { href: "/settings/api-key", label: "API key", icon: KeyRound },
+];
 
 export function AppSidebar({ email }: { email: string }) {
   const pathname = usePathname();
@@ -63,12 +68,14 @@ export function AppSidebar({ email }: { email: string }) {
           <SidebarGroupLabel>Settings</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton isActive={pathname === "/settings/members"} render={<Link href="/settings/members" />}>
-                  <Users />
-                  <span>Members</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {SETTINGS_LINKS.map((link) => (
+                <SidebarMenuItem key={link.href}>
+                  <SidebarMenuButton isActive={pathname === link.href} render={<Link href={link.href} />}>
+                    <link.icon />
+                    <span>{link.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

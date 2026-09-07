@@ -9,10 +9,22 @@ export interface WordPressConnection {
   appPassword: string;
 }
 
+// Application Passwords never leave the server - this is the shape safe to hand to a
+// client component or render on a page.
+export type DisplayConnection = Omit<WordPressConnection, "appPassword">;
+
 export interface WordPressConnectionInput {
   siteUrl: string;
   username: string;
   appPassword: string;
+  label?: string;
+}
+
+export interface WordPressConnectionUpdateInput {
+  siteUrl: string;
+  username: string;
+  // Omitted (rather than an empty string) means "keep the currently saved password".
+  appPassword?: string;
   label?: string;
 }
 
@@ -72,7 +84,7 @@ export async function createWordPressConnection(
 export async function updateWordPressConnection(
   organisationId: string,
   connectionId: string,
-  data: WordPressConnectionInput
+  data: WordPressConnectionUpdateInput
 ): Promise<void> {
   const existing = await getWordPressConnection(organisationId, connectionId);
   if (!existing) throw new Error("Connection not found for this organisation.");
@@ -81,7 +93,8 @@ export async function updateWordPressConnection(
   await payload.update({
     collection: "wordpress-connections",
     id: connectionId,
-    data,
+    // Leaving appPassword out of the update entirely keeps the encrypted value already stored.
+    data: data.appPassword ? data : { siteUrl: data.siteUrl, username: data.username, label: data.label },
     overrideAccess: true,
   });
 }

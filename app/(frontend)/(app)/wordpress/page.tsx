@@ -1,16 +1,20 @@
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
+import { SiteCard } from "@/modules/wordpress/SiteCard";
 
 const OVERVIEW_PATH = "/wordpress";
+const ADD_SITE_PATH = "/wordpress/connect";
 
 export default async function WordPressOverviewPage() {
   const user = await requireUser(OVERVIEW_PATH);
   const organisation = await getUserOrganisation(user.id);
   const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
+  const isAdmin = organisation?.role === "admin";
   // Application Passwords never leave the server - only pull the fields this page displays.
   const sites = connections.map(({ connectionId, label, siteUrl, username }) => ({
     connectionId,
@@ -23,8 +27,11 @@ export default async function WordPressOverviewPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Connected sites</h1>
-        {organisation?.role === "admin" && (
-          <Button render={<Link href="/wordpress/connect" />}>Manage connections</Button>
+        {isAdmin && (
+          <Button render={<Link href={ADD_SITE_PATH} />}>
+            <Plus />
+            Add WordPress site
+          </Button>
         )}
       </div>
 
@@ -34,15 +41,15 @@ export default async function WordPressOverviewPage() {
             {!organisation ? (
               <>
                 You&apos;re not part of an organisation yet.{" "}
-                <Link href="/wordpress/connect" className="text-primary underline underline-offset-4">
+                <Link href={ADD_SITE_PATH} className="text-primary underline underline-offset-4">
                   Get started
                 </Link>
                 .
               </>
-            ) : organisation.role === "admin" ? (
+            ) : isAdmin ? (
               <>
                 No WordPress sites connected yet.{" "}
-                <Link href="/wordpress/connect" className="text-primary underline underline-offset-4">
+                <Link href={ADD_SITE_PATH} className="text-primary underline underline-offset-4">
                   Connect one
                 </Link>
                 .
@@ -54,31 +61,9 @@ export default async function WordPressOverviewPage() {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sites.map((site) => {
-            const card = (
-              <Card
-                className={
-                  organisation?.role === "admin" ? "transition-colors hover:bg-accent/40" : undefined
-                }
-              >
-                <CardHeader>
-                  <CardTitle className="text-base">{site.label || site.siteUrl}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1 text-sm text-muted-foreground">
-                  <p>{site.siteUrl}</p>
-                  <p>{site.username}</p>
-                </CardContent>
-              </Card>
-            );
-
-            return organisation?.role === "admin" ? (
-              <Link key={site.connectionId} href={`/wordpress/connect?edit=${site.connectionId}`}>
-                {card}
-              </Link>
-            ) : (
-              <div key={site.connectionId}>{card}</div>
-            );
-          })}
+          {sites.map((site) => (
+            <SiteCard key={site.connectionId} site={site} editable={isAdmin} />
+          ))}
         </div>
       )}
     </div>

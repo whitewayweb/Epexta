@@ -14,7 +14,6 @@ interface ConnectionFormProps {
   label?: string;
   siteUrl?: string;
   username?: string;
-  onCancel?: () => void;
 }
 
 export function ConnectionForm({
@@ -23,7 +22,6 @@ export function ConnectionForm({
   label = "",
   siteUrl = "",
   username = "",
-  onCancel,
 }: ConnectionFormProps) {
   const action = mode === "edit" ? updateConnectionAction : addConnectionAction;
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -63,13 +61,15 @@ export function ConnectionForm({
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor={`appPassword-${connectionId ?? "new"}`}>Application Password</Label>
+        <Label htmlFor={`appPassword-${connectionId ?? "new"}`}>
+          {mode === "edit" ? "Application Password (optional)" : "Application Password"}
+        </Label>
         <Input
           id={`appPassword-${connectionId ?? "new"}`}
           type="password"
           name="appPassword"
-          required
-          placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+          required={mode === "add"}
+          placeholder={mode === "edit" ? "Leave blank to keep the current password" : "xxxx xxxx xxxx xxxx xxxx xxxx"}
         />
         <p className="text-xs text-muted-foreground">
           Generate one under WP Admin → Users → Profile → Application Passwords on your own site.
@@ -77,16 +77,9 @@ export function ConnectionForm({
       </div>
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       {state.success && <p className="text-sm text-emerald-600 dark:text-emerald-400">Saved.</p>}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={pending} className="self-start">
-          {pending ? "Saving…" : mode === "edit" ? "Save changes" : "Add site"}
-        </Button>
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="self-start">
-            Cancel
-          </Button>
-        )}
-      </div>
+      <Button type="submit" disabled={pending} className="self-start">
+        {pending ? "Saving…" : mode === "edit" ? "Save changes" : "Add site"}
+      </Button>
     </form>
   );
 }
