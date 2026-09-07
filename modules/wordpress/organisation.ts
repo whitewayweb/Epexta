@@ -1,4 +1,5 @@
 import { getPayloadClient } from "@/lib/payload";
+import type { WordpressConnection as WordPressConnectionDoc } from "@/payload-types";
 
 export interface WordPressConnection {
   connectionId: string;
@@ -15,7 +16,7 @@ export interface WordPressConnectionInput {
   label?: string;
 }
 
-function toConnection(doc: Record<string, unknown>): WordPressConnection {
+function toConnection(doc: WordPressConnectionDoc): WordPressConnection {
   return {
     connectionId: String(doc.id),
     label: String(doc.label ?? ""),
