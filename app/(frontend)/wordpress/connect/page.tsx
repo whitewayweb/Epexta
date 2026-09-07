@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { logoutAction } from "@/lib/auth-actions";
 import { getOrganisationMembers, getUserOrganisation } from "@/lib/organisation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiKeyPanel } from "@/modules/wordpress/ApiKeyPanel";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
 import { MembersPanel } from "@/modules/wordpress/MembersPanel";
@@ -20,53 +22,78 @@ export default async function ConnectPage() {
   const connection = organisation ? await getWordPressConnection(organisation.organisationId) : null;
 
   return (
-    <main style={{ padding: 24, display: "flex", flexDirection: "column", gap: 32 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Connect your WordPress site</h1>
+    <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-10">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Connect your WordPress site</h1>
         <form action={logoutAction}>
           <input type="hidden" name="redirectTo" value={CONNECT_PATH} />
-          <button type="submit">Log out ({user.email})</button>
+          <Button type="submit" variant="outline" size="sm">
+            Log out ({user.email})
+          </Button>
         </form>
       </div>
 
       {!organisation && (
-        <section>
-          <p>You don&apos;t have a WordPress site connected yet. Add one below — you&apos;ll become its admin.</p>
-          <ConnectionForm siteUrl="" username="" />
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Connect your site</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              You don&apos;t have a WordPress site connected yet. Add one below — you&apos;ll become its admin.
+            </p>
+            <ConnectionForm siteUrl="" username="" />
+          </CardContent>
+        </Card>
       )}
 
       {organisation && organisation.role === "admin" && (
         <>
-          <section>
-            <h2>Connection</h2>
-            <ConnectionForm siteUrl={connection?.siteUrl ?? ""} username={connection?.username ?? ""} />
-          </section>
-          <section>
-            <h2>Members</h2>
-            <MembersPanel members={await getOrganisationMembers(organisation.organisationId)} />
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Connection</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ConnectionForm siteUrl={connection?.siteUrl ?? ""} username={connection?.username ?? ""} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Members</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MembersPanel members={await getOrganisationMembers(organisation.organisationId)} />
+            </CardContent>
+          </Card>
         </>
       )}
 
       {organisation && organisation.role === "member" && (
-        <section>
-          <h2>Connection</h2>
-          {connection ? (
-            <p>
-              Connected to <strong>{connection.siteUrl}</strong>. Only the organisation admin can change the site or
-              Application Password.
-            </p>
-          ) : (
-            <p>Your organisation admin hasn&apos;t connected a WordPress site yet.</p>
-          )}
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Connection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {connection ? (
+              <p className="text-sm text-muted-foreground">
+                Connected to <span className="font-medium text-foreground">{connection.siteUrl}</span>. Only the
+                organisation admin can change the site or Application Password.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Your organisation admin hasn&apos;t connected a WordPress site yet.</p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      <section>
-        <h2>Your API key</h2>
-        <ApiKeyPanel />
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Your API key</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ApiKeyPanel />
+        </CardContent>
+      </Card>
     </main>
   );
 }

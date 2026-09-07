@@ -24,6 +24,18 @@ See [plan.md](plan.md) for the phased roadmap.
   in `payload.config.ts`, and adding routes under `/api/<name>/mcp` and `/<name>/connect`
   — nothing in `lib/`, `collections/`, or other modules should need to change.
 
+## UI: shadcn/ui + Tailwind, no exceptions
+
+Every page and component under `app/`, `components/`, and `modules/*/*.tsx` renders with
+the shadcn components in `components/ui/` (Base UI variant — use `render`, not `asChild`;
+see `components/ui/button.tsx`) and Tailwind utility classes bound to the theme tokens in
+`app/globals.css` (`bg-background`, `text-muted-foreground`, `border-border`, etc.).
+Never write raw `style={{ ... }}` objects or unstyled native `<button>`/`<input>` — this
+applies to new module UIs too (e.g. a future module's `/connect` page must look like
+`app/(frontend)/wordpress/connect/page.tsx`, not the plain HTML it started as). If a needed
+primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@latest add
+<name>` rather than hand-rolling markup.
+
 ## Route naming
 
 - Each module's MCP endpoint is `/api/<name>/mcp` (folder: `app/api/<name>/[transport]/route.ts`,
