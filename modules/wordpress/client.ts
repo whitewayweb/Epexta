@@ -18,6 +18,7 @@ export interface CreatePostInput {
   tagNames?: string[];
   seoTitle?: string;
   seoDescription?: string;
+  focusKeyphrase?: string;
   slug?: string;
 }
 
@@ -107,10 +108,11 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     if (input.slug) body.slug = input.slug;
     if (categories) body.categories = categories;
     if (tags) body.tags = tags;
-    if (input.seoTitle || input.seoDescription) {
+    if (input.seoTitle || input.seoDescription || input.focusKeyphrase) {
       body.meta = {
         ...(input.seoTitle ? { _yoast_wpseo_title: input.seoTitle } : {}),
         ...(input.seoDescription ? { _yoast_wpseo_metadesc: input.seoDescription } : {}),
+        ...(input.focusKeyphrase ? { _yoast_wpseo_focuskw: input.focusKeyphrase } : {}),
       };
     }
 
@@ -135,10 +137,11 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     if (fields.slug) body.slug = fields.slug;
     if (categories) body.categories = categories;
     if (tags) body.tags = tags;
-    if (fields.seoTitle || fields.seoDescription) {
+    if (fields.seoTitle || fields.seoDescription || fields.focusKeyphrase) {
       body.meta = {
         ...(fields.seoTitle ? { _yoast_wpseo_title: fields.seoTitle } : {}),
         ...(fields.seoDescription ? { _yoast_wpseo_metadesc: fields.seoDescription } : {}),
+        ...(fields.focusKeyphrase ? { _yoast_wpseo_focuskw: fields.focusKeyphrase } : {}),
       };
     }
 
