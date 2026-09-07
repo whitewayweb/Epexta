@@ -113,11 +113,6 @@ const SECURITY_POINTS = [
 
 const ROLES = [
   {
-    icon: ShieldCheck,
-    title: "Superadmin",
-    description: "Platform owner. The only role with access to the admin panel, not a customer-facing role.",
-  },
-  {
     icon: KeyRound,
     title: "Organisation admin",
     description: "Connects the WordPress site, invites teammates, and generates their own API key.",
@@ -340,7 +335,7 @@ export default function HomePage() {
                 One organisation, one WordPress connection, and API keys scoped to each teammate.
               </p>
             </div>
-            <div className="mt-14 grid gap-6 md:grid-cols-3">
+            <div className="mx-auto mt-14 grid max-w-2xl gap-6 md:grid-cols-2">
               {ROLES.map((role) => (
                 <Card key={role.title} className="border-border/60">
                   <CardHeader>

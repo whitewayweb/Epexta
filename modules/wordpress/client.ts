@@ -153,12 +153,22 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     return warnings;
   }
 
+  // A category/tag that fails to resolve (e.g. no permission to create a new term) must
+  // never be allowed to fall through silently - if it did, WordPress would just apply its
+  // own default category/no tags to the post, which looks indistinguishable from success.
+  function assertNoTermWarnings(categoryResult: ResolvedTerms | undefined, tagResult: ResolvedTerms | undefined) {
+    const termWarnings = [...(categoryResult?.warnings ?? []), ...(tagResult?.warnings ?? [])];
+    if (termWarnings.length > 0) {
+      throw new WordPressApiError(termWarnings.join(" "));
+    }
+  }
+
   async function createPost(input: CreatePostInput) {
     const [categoryResult, tagResult] = await Promise.all([
       input.categoryNames?.length ? resolveCategoryIds(input.categoryNames) : Promise.resolve(undefined),
       input.tagNames?.length ? resolveTagIds(input.tagNames) : Promise.resolve(undefined),
     ]);
-    const warnings = [...(categoryResult?.warnings ?? []), ...(tagResult?.warnings ?? [])];
+    assertNoTermWarnings(categoryResult, tagResult);
 
     const body: Record<string, unknown> = {
       title: input.title,
@@ -178,6 +188,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
       body: JSON.stringify(body),
     });
 
+    const warnings: string[] = [];
     if (Object.keys(yoastMeta).length > 0) {
       warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
     }
@@ -190,7 +201,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
       fields.categoryNames?.length ? resolveCategoryIds(fields.categoryNames) : Promise.resolve(undefined),
       fields.tagNames?.length ? resolveTagIds(fields.tagNames) : Promise.resolve(undefined),
     ]);
-    const warnings = [...(categoryResult?.warnings ?? []), ...(tagResult?.warnings ?? [])];
+    assertNoTermWarnings(categoryResult, tagResult);
 
     const body: Record<string, unknown> = {};
     if (fields.title) body.title = fields.title;
@@ -209,6 +220,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
       body: JSON.stringify(body),
     });
 
+    const warnings: string[] = [];
     if (Object.keys(yoastMeta).length > 0) {
       warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
     }

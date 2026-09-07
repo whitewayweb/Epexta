@@ -190,7 +190,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Create Blog Post",
       description:
-        "Create a new blog post on the connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
+        "Create a new blog post on the connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
         "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. Use an <img> with accurate descriptive alt text when an image is appropriate. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via set_featured_image. " +
         articleWritingGuidance,
       inputSchema: {
@@ -205,8 +205,10 @@ const rawHandler = createMcpHandler(
         excerpt: z.string().optional(),
         categoryNames: z
           .array(z.string())
-          .optional()
-          .describe("Category names. Created automatically if new."),
+          .min(1)
+          .describe(
+            "At least one category name for this post. Required: WordPress silently files a post with no categories into its own default category, so pick a genuinely fitting one (call list_categories first to see what exists) rather than omitting this. Created automatically if new."
+          ),
         tagNames: z
           .array(z.string())
           .optional()
