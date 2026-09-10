@@ -145,7 +145,8 @@ function resolveConnection(extra: { authInfo?: AuthInfo }, siteId?: number): Wor
   throw new ToolError(
     `This account has ${connections.length} connected sites: ` +
       connections.map((c) => `${c.connectionId} (${siteLabel(c)})`).join(", ") +
-      ". Call list_sites, then pass the chosen siteId."
+      ". Ask the user which one they mean, then pass the chosen siteId - do not pick one yourself " +
+      "based on existing content or any other inference."
   );
 }
 
@@ -164,7 +165,8 @@ const siteIdSchema = z
   .int()
   .optional()
   .describe(
-    "Which connected WordPress site to use, from list_sites. Optional when only one site is connected; required when several are."
+    "Which connected WordPress site to use, from list_sites. Optional when only one site is connected; " +
+      "required when several are - omitting it then fails with the list of valid site IDs to choose from."
   );
 
 const rawHandler = createMcpHandler(
@@ -449,7 +451,14 @@ const rawHandler = createMcpHandler(
     }
   );
   },
-  {},
+  {
+    instructions:
+      "siteId (from list_sites) selects which connected WordPress site a tool acts on - it's shared " +
+      "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, and " +
+      "set_featured_image, so a value obtained from list_sites or list_posts can be reused across calls " +
+      "in the same session. Call list_categories and list_tags before create_post/update_post to see " +
+      "what already exists on that site, since names are matched case-sensitively.",
+  },
   { basePath: "/api/wordpress", maxDuration: 60 }
 );
 

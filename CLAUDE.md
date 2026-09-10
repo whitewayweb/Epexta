@@ -54,6 +54,37 @@ primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@lates
   redirect to a same-site `redirectTo` value (rejecting anything not starting with a
   single `/`), to avoid an open redirect.
 
+## MCP tool guidance — follow the protocol's own division of labor
+
+Per the MCP spec and the MCP project's own guidance on server `instructions`
+(https://blog.modelcontextprotocol.io/posts/2025-11-03-using-server-instructions/):
+"Server instructions are for explaining your tools, not for modifying how the model
+generally responds or behaves," and critical actions "are better implemented as
+deterministic rules or hooks," not instructions. Concretely, in
+`app/api/wordpress/[transport]/route.ts` and any future module's MCP route:
+
+- `serverOptions.instructions` (sent once in the `initialize` handshake, see
+  `createMcpHandler(...)`) is for **tool relationships and operational patterns only** —
+  "call X before Y," "siteId from list_sites is shared across these tools," rate limits.
+  Never put a behavioral policy there ("ask the user before...", "never do X without
+  checking Y") — the model can simply ignore prose, and the spec explicitly says not to
+  rely on instructions for anything correctness- or security-critical.
+- Anything that actually must hold (authorization, an ambiguous required parameter,
+  a disallowed operation) is a **deterministic check that fails the call** — e.g.
+  `resolveConnection`'s `ToolError` when `siteId` is required but omitted, or the
+  org-scoped `extra.connections` lookup that makes cross-org access impossible outright
+  (see Security patterns below). A runtime error like that needs its own clear,
+  standalone message — don't assume the model still has `instructions` in view.
+- For a genuinely ambiguous choice a human should make (not just "the model should try
+  harder") — e.g. which of several connected sites — prefer the SDK's `elicitInput`
+  (`@modelcontextprotocol/sdk`'s `elicitInput` form-mode request) so the *client*
+  prompts the user via the protocol, rather than trying to get the model to ask via
+  prose. This depends on the connecting client actually supporting elicitation (verify
+  before relying on it — ChatGPT's MCP connector support may lag the spec); the
+  `ToolError` fallback must keep working regardless for clients that don't.
+- Tool/param `description` fields stay scoped to that one tool's own mechanics and
+  input shape — not a place to restate cross-cutting policy either.
+
 ## Role model — three distinct levels, do not conflate them
 
 1. **`superadmin`** (on the `Users` collection `role` field) — the only role that can
