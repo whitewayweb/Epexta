@@ -78,8 +78,9 @@ deterministic rules or hooks," not instructions. Concretely, in
 - For a genuinely ambiguous choice a human should make (not just "the model should try
   harder") — e.g. which of several connected sites — use the SDK's `elicitInput`
   (`@modelcontextprotocol/sdk`'s `elicitInput` form-mode request) so the *client*
-  prompts the user via the protocol. If the connecting client does not support
-  elicitation, fail the operation clearly; do not silently fall back to model choice.
+  prompts the user via the protocol. Check the connecting client's declared
+  `elicitation.form` capability before sending that request; if it is absent, fail
+  the operation clearly. Do not silently fall back to model choice.
 - Tool/param `description` fields stay scoped to that one tool's own mechanics and
   input shape — not a place to restate cross-cutting policy either.
 
