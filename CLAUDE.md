@@ -38,9 +38,11 @@ primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@lates
 
 ## Route naming
 
-- Each module's MCP endpoint is `/api/<name>/mcp` (folder: `app/api/<name>/[transport]/route.ts`,
-  `basePath: "/api/<name>"`). `mcp-handler` requires the **last** path segment to be
-  the literal transport type (`mcp` or `sse`) — never put the module name after it.
+- Each module's MCP endpoint is `/api/<name>/mcp` (folder: `app/api/<name>/mcp/route.ts`).
+  `mcp-handler` v2 mounts purely by file location — no `basePath` option and no
+  `[transport]` dynamic segment (that was the v1 shape; removed in the v2 migration,
+  see `app/api/wordpress/mcp/route.ts`). Put the route file directly at the URL you
+  want it to answer on.
 - Payload's own REST API lives at `/api/cms/*` (`app/api/cms/[...slug]/route.ts`).
 - Payload's admin panel is `/admin`.
 - Each module's onboarding UI is `/<name>/connect`.
@@ -61,7 +63,7 @@ Per the MCP spec and the MCP project's own guidance on server `instructions`
 "Server instructions are for explaining your tools, not for modifying how the model
 generally responds or behaves," and critical actions "are better implemented as
 deterministic rules or hooks," not instructions. Concretely, in
-`app/api/wordpress/[transport]/route.ts` and any future module's MCP route:
+`app/api/wordpress/mcp/route.ts` and any future module's MCP route:
 
 - `serverOptions.instructions` (sent once in the `initialize` handshake, see
   `createMcpHandler(...)`) is for **tool relationships and operational patterns only** —
@@ -76,13 +78,50 @@ deterministic rules or hooks," not instructions. Concretely, in
   outright (see Security patterns below). A runtime error like that needs its own clear,
   standalone message — don't assume the model still has `instructions` in view.
 - For a genuinely ambiguous choice a human should make (not just "the model should try
-  harder") — e.g. which of several connected sites — use the SDK's `elicitInput`
-  (`@modelcontextprotocol/sdk`'s `elicitInput` form-mode request) so the *client*
-  prompts the user via the protocol. Check the connecting client's declared
-  `elicitation.form` capability before sending that request; if it is absent, fail
-  the operation clearly. Do not silently fall back to model choice.
+  harder") — e.g. which of several connected sites — return `inputRequired(...)`
+  (`@modelcontextprotocol/server`'s multi-round-trip elicitation, protocol revision
+  2026-07-28) so the *client* prompts the user via the protocol; read the answer back
+  on the retried call with `acceptedContent`/`inputResponse`. There is no client
+  capability to pre-check before eliciting in this protocol revision — the SDK's legacy
+  shim degrades gracefully for older clients on its own; don't hand-roll a capability
+  probe. Do not silently fall back to model choice. See `resolveConnection` in
+  `app/api/wordpress/mcp/route.ts` for the working pattern.
 - Tool/param `description` fields stay scoped to that one tool's own mechanics and
   input shape — not a place to restate cross-cutting policy either.
+
+## MCP spec — read the relevant page before implementing, every time
+
+The MCP protocol (currently revision `2026-07-28`) changes fast enough that memorized
+knowledge of it is unreliable — this repo's own MCP route was built against a SDK
+version two protocol revisions behind current before the 2026-09 migration. Before
+adding to or changing behavior in any of these areas, fetch the matching spec page,
+actually read it, and reason about how it applies to *this* codebase's constraints
+(the role model, no-delete-tools rule, org-scoped auth) before writing code — do not
+implement from memory or from a summary of a summary:
+
+- **Tools** — https://modelcontextprotocol.io/specification/2026-07-28/server/tools
+  (tool/result shape, annotations, `outputSchema`/`structuredContent`, error reporting
+  via `isError` vs. protocol errors, stateful-tool handle patterns)
+- **Resources** — https://modelcontextprotocol.io/specification/2026-07-28/server/resources
+  (only relevant once a module exposes `resources/*`, none do yet)
+- **Prompts** — https://modelcontextprotocol.io/specification/2026-07-28/server/prompts
+  (only relevant once a module exposes `prompts/*`, none do yet)
+- **Discover** — https://modelcontextprotocol.io/specification/2026-07-28/server/discover
+- **Elicitation** — https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation
+  (form vs. url mode, the multi-round-trip `inputRequired`/`inputResponses` flow used by
+  `resolveConnection`; re-read this before touching that function)
+- **Sampling** — https://modelcontextprotocol.io/specification/2026-07-28/client/sampling
+  (not used anywhere in this codebase yet — read this first if a future tool wants to
+  ask the client's LLM for a completion, rather than assuming the old
+  `requestSampling`/`createMessage` push API still works, it's deprecated in this
+  revision)
+- **Roots** — https://modelcontextprotocol.io/specification/2026-07-28/client/roots
+  (not used anywhere in this codebase yet)
+
+After reading, explicitly evaluate the options the spec presents (e.g. form vs. url
+elicitation, whether a result needs `outputSchema`) against this repo's actual
+constraints before picking an approach — don't default to whatever the first code
+example shows.
 
 ## Role model — three distinct levels, do not conflate them
 
