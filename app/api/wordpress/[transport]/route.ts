@@ -1,4 +1,9 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import {
+  ElicitResultSchema,
+  type ElicitRequestFormParams,
+  type ElicitResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
 import { getUserOrganisation } from "@/lib/organisation";
@@ -110,18 +115,31 @@ async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInf
   }
 }
 
+type ToolHandlerExtra = {
+  authInfo?: AuthInfo;
+  sendRequest: (
+    request: { method: "elicitation/create"; params: ElicitRequestFormParams },
+    resultSchema: typeof ElicitResultSchema,
+    options?: { signal?: AbortSignal }
+  ) => Promise<ElicitResult>;
+};
+
 function siteLabel(connection: WordPressConnection): string {
   return connection.label ? `${connection.label} (${connection.siteUrl})` : connection.siteUrl;
 }
 
 // An organisation may have several connected sites. Tools that act on a specific site
 // take an optional siteId - with only one site connected it can be omitted (the common
-// case), but with several the caller must disambiguate via list_sites first.
+// case). With several sites, the server always elicits the choice from the user and
+// deliberately ignores any siteId supplied by the model.
 //
 // This lookup against extra.authInfo.extra.connections (the org-scoped list built once
 // in verifyToken) is the only cross-organisation authorization check in this file - siteId
 // is never resolved via an independent findByID against the full collection.
-function resolveConnection(extra: { authInfo?: AuthInfo }, siteId?: number): WordPressConnection {
+async function resolveConnection(
+  extra: ToolHandlerExtra,
+  siteId?: number
+): Promise<WordPressConnection> {
   const connections = (extra.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
 
   if (connections.length === 0) {
@@ -130,7 +148,7 @@ function resolveConnection(extra: { authInfo?: AuthInfo }, siteId?: number): Wor
     );
   }
 
-  if (siteId !== undefined) {
+  if (connections.length === 1 && siteId !== undefined) {
     const match = connections.find((c) => Number(c.connectionId) === siteId);
     if (!match) {
       throw new ToolError(
@@ -142,16 +160,61 @@ function resolveConnection(extra: { authInfo?: AuthInfo }, siteId?: number): Wor
 
   if (connections.length === 1) return connections[0];
 
-  throw new ToolError(
-    `This account has ${connections.length} connected sites: ` +
-      connections.map((c) => `${c.connectionId} (${siteLabel(c)})`).join(", ") +
-      ". Ask the user which one they mean, then pass the chosen siteId - do not pick one yourself " +
-      "based on existing content or any other inference."
-  );
+  const siteOptions = connections.map((connection) => ({
+    value: String(connection.connectionId),
+    label: siteLabel(connection),
+  }));
+  let elicitation: ElicitResult;
+  try {
+    elicitation = await extra.sendRequest(
+      {
+        method: "elicitation/create",
+        params: {
+          mode: "form",
+          message: "Which connected WordPress site should this operation use?",
+          requestedSchema: {
+            type: "object",
+            properties: {
+              siteId: {
+                type: "string",
+                title: "Website",
+                oneOf: siteOptions.map(({ value, label }) => ({ const: value, title: label })),
+              },
+            },
+            required: ["siteId"],
+          },
+        },
+      },
+      ElicitResultSchema
+    );
+  } catch {
+    throw new ToolError(
+      "This operation requires a user-selected WordPress site, but the MCP client did not complete site elicitation. No site was chosen and nothing was changed."
+    );
+  }
+
+  if (elicitation.action !== "accept") {
+    throw new ToolError("No WordPress site was selected. The operation was cancelled.");
+  }
+
+  const selectedSiteId = elicitation.content?.siteId;
+  if (typeof selectedSiteId !== "string") {
+    throw new ToolError("The WordPress site selection was incomplete. The operation was cancelled.");
+  }
+
+  const selectedConnection = connections.find((connection) => String(connection.connectionId) === selectedSiteId);
+  if (!selectedConnection) {
+    throw new ToolError("The selected WordPress site is no longer connected. The operation was cancelled.");
+  }
+
+  return selectedConnection;
 }
 
-function clientFromExtra(extra: { authInfo?: AuthInfo }, siteId?: number): WordPressClient {
-  const connection = resolveConnection(extra, siteId);
+async function clientFromExtra(
+  extra: ToolHandlerExtra,
+  siteId?: number
+): Promise<WordPressClient> {
+  const connection = await resolveConnection(extra, siteId);
   const credentials: WordPressCredentials = {
     siteUrl: connection.siteUrl,
     username: connection.username,
@@ -166,7 +229,7 @@ const siteIdSchema = z
   .optional()
   .describe(
     "Which connected WordPress site to use, from list_sites. Optional when only one site is connected; " +
-      "required when several are - omitting it then fails with the list of valid site IDs to choose from."
+      "when several are connected, the server will always ask the user to choose and will ignore this value."
   );
 
 const rawHandler = createMcpHandler(
@@ -176,7 +239,7 @@ const rawHandler = createMcpHandler(
     {
       title: "List Connected WordPress Sites",
       description:
-        "List the WordPress sites connected to this account's organisation. Call this first when more than one site may be connected, to get the siteId to pass to the other tools.",
+        "List the WordPress sites connected to this account's organisation. Call this when the user asks which sites are connected. Site selection for other tools is handled by a required user elicitation.",
       inputSchema: {},
     },
     async (_args, extra) => {
@@ -209,7 +272,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, status, search, perPage }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         const posts = await client.listPosts({ status, search, perPage });
         return textResult(posts);
       } catch (e) {
@@ -227,7 +290,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         return textResult(await client.listCategories());
       } catch (e) {
         return errorResult(e);
@@ -244,7 +307,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         return textResult(await client.listTags());
       } catch (e) {
         return errorResult(e);
@@ -307,7 +370,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, ...input }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         const { post, warnings } = await client.createPost(input);
         const seoCheck = runSeoChecks(input);
         const seoFollowUp = seoFollowUpNote(seoCheck, post.id);
@@ -345,7 +408,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, postId, ...fields }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         const { post, warnings } = await client.updatePost(postId, fields);
         const seoCheck = runSeoChecks(fields);
         // Only nag about SEO when this call actually touched a keyphrase-relevant field -
@@ -372,7 +435,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, postId }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         const { post, warnings } = await client.publishPost(postId);
         return textResult({ post, warnings });
       } catch (e) {
@@ -426,7 +489,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename, altText }, extra) => {
       try {
-        const client = clientFromExtra(extra, siteId);
+        const client = await clientFromExtra(extra, siteId);
         if (!imageUrl && !imageBase64) {
           throw new ToolError("Provide either imageUrl or imageBase64.");
         }

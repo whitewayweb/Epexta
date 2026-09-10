@@ -70,18 +70,16 @@ deterministic rules or hooks," not instructions. Concretely, in
   checking Y") — the model can simply ignore prose, and the spec explicitly says not to
   rely on instructions for anything correctness- or security-critical.
 - Anything that actually must hold (authorization, an ambiguous required parameter,
-  a disallowed operation) is a **deterministic check that fails the call** — e.g.
-  `resolveConnection`'s `ToolError` when `siteId` is required but omitted, or the
-  org-scoped `extra.connections` lookup that makes cross-org access impossible outright
-  (see Security patterns below). A runtime error like that needs its own clear,
+  a disallowed operation) is a **deterministic check or protocol interaction** — e.g.
+  `resolveConnection`'s required user elicitation when several sites are connected, or
+  the org-scoped `extra.connections` lookup that makes cross-org access impossible
+  outright (see Security patterns below). A runtime error like that needs its own clear,
   standalone message — don't assume the model still has `instructions` in view.
 - For a genuinely ambiguous choice a human should make (not just "the model should try
-  harder") — e.g. which of several connected sites — prefer the SDK's `elicitInput`
+  harder") — e.g. which of several connected sites — use the SDK's `elicitInput`
   (`@modelcontextprotocol/sdk`'s `elicitInput` form-mode request) so the *client*
-  prompts the user via the protocol, rather than trying to get the model to ask via
-  prose. This depends on the connecting client actually supporting elicitation (verify
-  before relying on it — ChatGPT's MCP connector support may lag the spec); the
-  `ToolError` fallback must keep working regardless for clients that don't.
+  prompts the user via the protocol. If the connecting client does not support
+  elicitation, fail the operation clearly; do not silently fall back to model choice.
 - Tool/param `description` fields stay scoped to that one tool's own mechanics and
   input shape — not a place to restate cross-cutting policy either.
 
