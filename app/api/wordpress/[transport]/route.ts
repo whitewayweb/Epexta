@@ -117,6 +117,10 @@ function siteLabel(connection: WordPressConnection): string {
 // An organisation may have several connected sites. Tools that act on a specific site
 // take an optional siteId - with only one site connected it can be omitted (the common
 // case), but with several the caller must disambiguate via list_sites first.
+//
+// This lookup against extra.authInfo.extra.connections (the org-scoped list built once
+// in verifyToken) is the only cross-organisation authorization check in this file - siteId
+// is never resolved via an independent findByID against the full collection.
 function resolveConnection(extra: { authInfo?: AuthInfo }, siteId?: number): WordPressConnection {
   const connections = (extra.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
 

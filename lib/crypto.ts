@@ -17,6 +17,8 @@ function getKey(): Buffer {
 }
 
 export function encrypt(plainText: string): string {
+  // A fresh random IV per call is required for AES-GCM - reusing one with the same key
+  // breaks its confidentiality guarantee. Never cache or derive this deterministically.
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv);
   const encrypted = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);

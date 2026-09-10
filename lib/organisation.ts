@@ -6,7 +6,12 @@ export interface OrganisationMembership {
   role: OrganisationRole;
 }
 
-/** The organisation (if any) that this user belongs to, and their role in it. */
+/**
+ * The organisation (if any) that this user belongs to, and their role in it.
+ * Assumes a user belongs to at most one organisation - `limit: 1` returns whichever
+ * matches first. Every admin/member check in modules/wordpress/actions.ts relies on
+ * this being unambiguous, so multi-org membership can't be introduced here alone.
+ */
 export async function getUserOrganisation(userId: string): Promise<OrganisationMembership | null> {
   const payload = await getPayloadClient();
   const result = await payload.find({
