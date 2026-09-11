@@ -125,19 +125,37 @@ function supportsFormElicitation(server: McpServer): boolean {
   return capability !== undefined && (capability.form !== undefined || Object.keys(capability).length === 0);
 }
 
+// siteId, as seen by tools and the user, is a 1-based position in the org's connection
+// list (list_sites shows "1", "2", ...) - never the underlying database connectionId.
+// Positions are stable across calls in the same request/session because
+// listWordPressConnections always sorts by createdAt. Keeping the real connectionId out
+// of tool schemas and error messages means neither the model nor a person typing a
+// number ever needs to see or handle an internal database identifier.
+function connectionByOrdinal(
+  connections: WordPressConnection[],
+  ordinal: number
+): WordPressConnection | undefined {
+  return connections[ordinal - 1];
+}
+
 // An organisation may have several connected sites. Tools that act on a specific site
 // take an optional siteId - with only one site connected it can be omitted (the common
-// case). With several sites, the server always elicits the choice from the user and
-// deliberately ignores any siteId supplied by the model.
+// case). With several sites, the server prefers to elicit the choice from the user; a
+// model-supplied siteId is only trusted as a fallback when the connecting client can't
+// do form elicitation at all (see supportsFormElicitation below), since otherwise a
+// client's silent capability gap would just block the operation outright with no way
+// for the user to act.
 //
 // This lookup against extra.authInfo.extra.connections (the org-scoped list built once
 // in verifyToken) is the only cross-organisation authorization check in this file - siteId
 // is never resolved via an independent findByID against the full collection.
+type ResolvedSite = { connection: WordPressConnection; ordinal: number };
+
 async function resolveConnection(
   extra: ToolHandlerExtra,
   server: McpServer,
   siteId?: number
-): Promise<WordPressConnection> {
+): Promise<ResolvedSite> {
   const connections = (extra.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
 
   if (connections.length === 0) {
@@ -146,26 +164,37 @@ async function resolveConnection(
     );
   }
 
-  if (connections.length === 1 && siteId !== undefined) {
-    const match = connections.find((c) => Number(c.connectionId) === siteId);
+  if (connections.length === 1) {
+    if (siteId === undefined) return { connection: connections[0], ordinal: 1 };
+    const match = connectionByOrdinal(connections, siteId);
     if (!match) {
       throw new ToolError(
-        `No connected site with siteId ${siteId}. Call list_sites to see valid site IDs.`
+        `No connected site numbered ${siteId}. Call list_sites to see valid site numbers.`
       );
     }
-    return match;
+    return { connection: match, ordinal: siteId };
   }
-
-  if (connections.length === 1) return connections[0];
 
   if (!supportsFormElicitation(server)) {
-    throw new ToolError(
-      "This MCP client does not support the required form-based site selection. No site was chosen and nothing was changed."
-    );
+    if (siteId === undefined) {
+      throw new ToolError(
+        "This MCP client does not support the required form-based site selection, and no siteId was provided. " +
+          "Call list_sites, ask the user which numbered site to use, then retry with that number as siteId."
+      );
+    }
+    const match = connectionByOrdinal(connections, siteId);
+    if (!match) {
+      throw new ToolError(
+        `No connected site numbered ${siteId}. Call list_sites to see valid site numbers.`
+      );
+    }
+    return { connection: match, ordinal: siteId };
   }
 
-  const siteOptions = connections.map((connection) => ({
-    value: String(connection.connectionId),
+  // Elicitation is part of the public MCP contract too. Its values must use the
+  // same ordinal siteId exposed by list_sites, never the internal connection ID.
+  const siteOptions = connections.map((connection, index) => ({
+    value: String(index + 1),
     label: siteLabel(connection),
   }));
   let elicitation: ElicitResult;
@@ -201,30 +230,43 @@ async function resolveConnection(
   }
 
   const selectedSiteId = elicitation.content?.siteId;
-  if (typeof selectedSiteId !== "string") {
+  if (typeof selectedSiteId !== "string" || !/^\d+$/.test(selectedSiteId)) {
     throw new ToolError("The WordPress site selection was incomplete. The operation was cancelled.");
   }
 
-  const selectedConnection = connections.find((connection) => String(connection.connectionId) === selectedSiteId);
+  const selectedOrdinal = Number(selectedSiteId);
+  const selectedConnection = connectionByOrdinal(connections, selectedOrdinal);
   if (!selectedConnection) {
     throw new ToolError("The selected WordPress site is no longer connected. The operation was cancelled.");
   }
 
-  return selectedConnection;
+  return { connection: selectedConnection, ordinal: selectedOrdinal };
+}
+
+// Every site-scoped tool result includes this so the calling model (and, by extension,
+// the user) sees in the same turn which site an action actually landed on - the model's
+// own siteId in a request can be honored by resolveConnection while still not meaning
+// what the model intended (e.g. it mislabels which number goes with which site when
+// relaying the choice back to the user), and there was previously no feedback loop to
+// catch that until someone checked the target site directly.
+type SiteInfo = { siteId: number; label: string | null; siteUrl: string };
+
+function siteInfo({ connection, ordinal }: ResolvedSite): SiteInfo {
+  return { siteId: ordinal, label: connection.label || null, siteUrl: connection.siteUrl };
 }
 
 async function clientFromExtra(
   extra: ToolHandlerExtra,
   server: McpServer,
   siteId?: number
-): Promise<WordPressClient> {
-  const connection = await resolveConnection(extra, server, siteId);
+): Promise<{ client: WordPressClient; site: SiteInfo }> {
+  const resolved = await resolveConnection(extra, server, siteId);
   const credentials: WordPressCredentials = {
-    siteUrl: connection.siteUrl,
-    username: connection.username,
-    appPassword: connection.appPassword,
+    siteUrl: resolved.connection.siteUrl,
+    username: resolved.connection.username,
+    appPassword: resolved.connection.appPassword,
   };
-  return createWordPressClient(credentials);
+  return { client: createWordPressClient(credentials), site: siteInfo(resolved) };
 }
 
 const siteIdSchema = z
@@ -232,8 +274,10 @@ const siteIdSchema = z
   .int()
   .optional()
   .describe(
-    "Which connected WordPress site to use, from list_sites. Optional when only one site is connected; " +
-      "when several are connected, the server will always ask the user to choose and will ignore this value."
+    "Which connected WordPress site to use: the number shown for it by list_sites (1, 2, 3, ...), not a " +
+      "database ID. Optional when only one site is connected. When several are connected, the server " +
+      "normally elicits the choice from the user directly and ignores this value; it is only used as a " +
+      "fallback when the connecting client can't present that selection form."
   );
 
 const rawHandler = createMcpHandler(
@@ -246,14 +290,14 @@ const rawHandler = createMcpHandler(
     {
       title: "List Connected WordPress Sites",
       description:
-        "List the WordPress sites connected to this account's organisation. Call this when the user asks which sites are connected. Site selection for other tools is handled by a required user elicitation.",
+        "List the WordPress sites connected to this account's organisation. Call this when the user asks which sites are connected, or when a site-selection form isn't supported and the user needs to pick one by number. Each site's siteId here is just its position in this list (1, 2, 3, ...) - present it to the user as 'Type 1 for <label>, Type 2 for <label>' etc. Site selection for other tools is normally handled by a required user elicitation.",
       inputSchema: {},
     },
     async (_args, extra) => {
       try {
         const connections = (extra.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
         return textResult(
-          connections.map((c) => ({ siteId: Number(c.connectionId), label: c.label || null, siteUrl: c.siteUrl }))
+          connections.map((c, i) => ({ siteId: i + 1, label: c.label || null, siteUrl: c.siteUrl }))
         );
       } catch (e) {
         return errorResult(e);
@@ -279,9 +323,9 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, status, search, perPage }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
+        const { client, site } = await clientFrom(extra, siteId);
         const posts = await client.listPosts({ status, search, perPage });
-        return textResult(posts);
+        return textResult({ site, posts });
       } catch (e) {
         return errorResult(e);
       }
@@ -297,8 +341,8 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
-        return textResult(await client.listCategories());
+        const { client, site } = await clientFrom(extra, siteId);
+        return textResult({ site, categories: await client.listCategories() });
       } catch (e) {
         return errorResult(e);
       }
@@ -314,8 +358,8 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
-        return textResult(await client.listTags());
+        const { client, site } = await clientFrom(extra, siteId);
+        return textResult({ site, tags: await client.listTags() });
       } catch (e) {
         return errorResult(e);
       }
@@ -377,11 +421,11 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, ...input }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
+        const { client, site } = await clientFrom(extra, siteId);
         const { post, warnings } = await client.createPost(input);
         const seoCheck = runSeoChecks(input);
         const seoFollowUp = seoFollowUpNote(seoCheck, post.id);
-        return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
+        return textResult({ site, post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
       } catch (e) {
         return errorResult(e);
       }
@@ -415,7 +459,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, postId, ...fields }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
+        const { client, site } = await clientFrom(extra, siteId);
         const { post, warnings } = await client.updatePost(postId, fields);
         const seoCheck = runSeoChecks(fields);
         // Only nag about SEO when this call actually touched a keyphrase-relevant field -
@@ -423,7 +467,7 @@ const rawHandler = createMcpHandler(
         // "no focus keyphrase" every time, since fields here has no prior post state to
         // compare against.
         const seoFollowUp = fields.focusKeyphrase !== undefined ? seoFollowUpNote(seoCheck, postId) : undefined;
-        return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
+        return textResult({ site, post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
       } catch (e) {
         return errorResult(e);
       }
@@ -442,9 +486,9 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, postId }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
+        const { client, site } = await clientFrom(extra, siteId);
         const { post, warnings } = await client.publishPost(postId);
-        return textResult({ post, warnings });
+        return textResult({ site, post, warnings });
       } catch (e) {
         return errorResult(e);
       }
@@ -496,7 +540,7 @@ const rawHandler = createMcpHandler(
     },
     async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename, altText }, extra) => {
       try {
-        const client = await clientFrom(extra, siteId);
+        const { client, site } = await clientFrom(extra, siteId);
         if (!imageUrl && !imageBase64) {
           throw new ToolError("Provide either imageUrl or imageBase64.");
         }
@@ -514,7 +558,7 @@ const rawHandler = createMcpHandler(
             );
 
         const post = await client.setFeaturedImage(postId, media.id);
-        return textResult({ media, post });
+        return textResult({ site, media, post });
       } catch (e) {
         return errorResult(e);
       }
@@ -526,8 +570,11 @@ const rawHandler = createMcpHandler(
       "siteId (from list_sites) selects which connected WordPress site a tool acts on - it's shared " +
       "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, and " +
       "set_featured_image, so a value obtained from list_sites or list_posts can be reused across calls " +
-      "in the same session. Call list_categories and list_tags before create_post/update_post to see " +
-      "what already exists on that site, since names are matched case-sensitively.",
+      "in the same session. Every site-scoped tool's result includes a site field (siteId, label, siteUrl) " +
+      "identifying which connected site it actually used - check it against what the user asked for after " +
+      "each call, since the intended site and the resolved one can diverge. Call list_categories and " +
+      "list_tags before create_post/update_post to see what already exists on that site, since names are " +
+      "matched case-sensitively.",
   },
   { basePath: "/api/wordpress", maxDuration: 60 }
 );
