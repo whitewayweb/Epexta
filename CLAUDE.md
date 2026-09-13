@@ -10,19 +10,97 @@ See [plan.md](plan.md) for the phased roadmap.
   `session.ts` (cookie/auth), `auth-actions.ts` (login/signup/logout Server Actions —
   account creation is a platform concern, not a module one), `members.ts` +
   `organisation.ts` (generic organisation/membership model), `crypto.ts` (AES-256-GCM
-  for secrets at rest), `modules.ts` (module registry).
+  for secrets at rest), `modules.ts` (module registry), `entitlements.ts` (per-organisation
+  module on/off state — see `MODULE_ENTITLEMENTS_PLAN.md`).
 - `components/auth/` — the platform-wide `LoginForm`/`SignupForm` used by
   `/login` and `/signup`. Modules never render their own login/signup UI; they
   redirect unauthenticated visitors to `/login?redirectTo=<module path>` (see
   `app/(frontend)/wordpress/connect/page.tsx`) and get the user back afterwards.
 - `collections/` — **only** truly platform-wide Payload collections (`Users`,
-  `Organisations`). Never put a module-specific collection here.
+  `Organisations`, `ModuleEntitlements`). Never put a module-specific collection here.
 - `modules/<name>/` — everything specific to one integration: its own Payload
   collection (referencing `organisation` via a relationship, never re-implementing
   membership itself), its API client, server actions, and UI components.
 - Adding a new module means creating `modules/<name>/`, registering its collection
   in `payload.config.ts`, and adding routes under `/api/<name>/mcp` and `/<name>/connect`
   — nothing in `lib/`, `collections/`, or other modules should need to change.
+
+## Scalability and future evolution
+
+Design every feature plan and implementation for Epexta as a growing multi-organisation
+platform, not just for the customer count or module count that exist today. Don't wait to
+be told to think about scale — treat it as a standing requirement, the same way the
+security patterns below are never optional.
+
+Before choosing a data model, API shape, or authorization boundary:
+
+- Identify the likely next-stage needs for that feature: more organisations, more
+  modules, billing integration, lifecycle states (trials, suspension, expiry),
+  auditability, third-party integrations, usage limits, and operational/support needs.
+- Prefer durable platform boundaries and stable identifiers over shortcuts specific to
+  the feature at hand (e.g. a dedicated collection with a real relationship and a compound
+  index over an array field on an existing collection, once more than one axis of data —
+  like organisation *and* module *and* provenance — is involved; see
+  `MODULE_ENTITLEMENTS_PLAN.md` for a worked example of this exact tradeoff).
+- Keep module code dependent on platform interfaces (`lib/`), never on billing internals,
+  plan/tier concepts, or another module's internal data model.
+- Choose a model that accommodates foreseeable enrichment (new fields, new states) without
+  forcing a risky authorization or data migration later.
+- Use indexed, constrained persistence for organisation-scoped commercial/entitlement
+  state — a unique compound index (`CollectionConfig.indexes`) beats an application-level
+  "check before insert," since it holds even under concurrent writes.
+- State the migration, rollout, and backwards-compatibility path explicitly for any schema
+  or access-control change — see the backfill-before-enforcement pattern in
+  `MODULE_ENTITLEMENTS_PLAN.md`'s Phase 1 for what "no existing customer loses access on
+  deploy day" looks like in practice.
+- Distinguish request-scoped efficiency (memoizing a lookup already made once per request)
+  from shared cross-request caching — an access change (a superadmin revoking a module,
+  disabling a user) must take effect on the next request, not after some cache expires.
+- Call out any assumption in the current implementation that would limit future
+  multi-organisation, multi-module, or billing evolution (e.g. `getUserOrganisation`'s
+  single-organisation-per-user assumption in `lib/organisation.ts`) rather than silently
+  building more on top of it.
+
+Apply this proportionately: avoid speculative systems, unused configuration options, and
+premature abstraction for their own sake (per the top-level guidance on not designing for
+hypothetical requirements) — but never choose a short-term implementation that creates a
+foreseeable structural blocker for Epexta's growth just because it's less work today.
+
+## Engineering quality and consistency
+
+Don't wait to be asked to refactor, reconcile duplication, remove dead code, or check
+consistency — treat these as a standing part of finishing any change, the same way
+running the Dev workflow checks before considering a change done is standing, not
+optional. For every feature plan, implementation, and review:
+
+- Inspect existing platform patterns before creating a new helper, API shape, data model,
+  or UI flow. Extend the established pattern (e.g. `lib/organisation.ts`'s
+  `getPayloadClient()` + manual-role-check-then-`overrideAccess` shape) when the new code
+  has the same responsibility, rather than inventing a parallel way to do the same thing.
+- Reuse one authoritative implementation for any cross-cutting behaviour that's expected
+  to stay stable — authorization/entitlement checks, input validation, error-result
+  formatting, MCP tool/route registration, data-access helpers. Don't copy the same check
+  or shape across call sites (this is exactly why `MODULE_ENTITLEMENTS_PLAN.md` centralizes
+  entitlement checks into `requireModuleEnabledForUser`/`assertModuleEnabled`/
+  `registerGatedTool` instead of one-off `if` statements at each entry point).
+- When a change introduces or exposes duplication that represents the *same*
+  responsibility, refactor it away as part of that change rather than leaving it for
+  later — but keep abstractions small, named for what they actually do, and don't build a
+  generic framework to serve what is still genuinely one-off behaviour.
+- Reconcile every entry point a change actually touches — pages, Server Actions, route
+  handlers, MCP tools, webhooks, background jobs, scheduled tasks, collection `access`
+  rules, tests, `CLAUDE.md`/plan docs, and any admin UI — rather than updating the first
+  place a symptom shows up and leaving siblings inconsistent (a recurring failure mode:
+  see the `list_sites` bypass and stale doc references caught during
+  `MODULE_ENTITLEMENTS_PLAN.md`'s own review passes).
+- Preserve existing public contracts (route URLs, MCP tool names/schemas, exported
+  function signatures other modules import) unless the plan explicitly states a
+  compatible migration path for the break — never break one silently as a side effect.
+- Before treating a change as complete, remove dead code, stale comments, unused imports,
+  contradictory documentation, and superseded code paths that the change itself made
+  obsolete — don't leave the old way sitting next to the new way "just in case."
+- Verify the result reads as consistent with the rest of the module and the platform
+  conventions above, then run the Dev workflow's required checks.
 
 ## UI: shadcn/ui + Tailwind, no exceptions
 
