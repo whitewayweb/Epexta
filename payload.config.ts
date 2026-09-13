@@ -5,6 +5,7 @@ import { buildConfig } from "payload";
 import { fileURLToPath } from "url";
 
 import { ApiKeys } from "./collections/ApiKeys";
+import { ModuleEntitlements } from "./collections/ModuleEntitlements";
 import { Organisations } from "./collections/Organisations";
 import { Users } from "./collections/Users";
 import { WordPressConnections } from "./modules/wordpress/collection";
@@ -36,7 +37,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Organisations, ApiKeys, WordPressConnections],
+  collections: [Users, Organisations, ApiKeys, ModuleEntitlements, WordPressConnections],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "",
   typescript: {

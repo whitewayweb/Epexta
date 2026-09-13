@@ -8,7 +8,7 @@ export interface ModuleDefinition {
   mcpPath: string;
 }
 
-export const MODULES: ModuleDefinition[] = [
+export const MODULES = [
   {
     slug: "wordpress",
     name: "WordPress",
@@ -17,4 +17,7 @@ export const MODULES: ModuleDefinition[] = [
     connectPath: "/wordpress/connect",
     mcpPath: "/api/wordpress/mcp",
   },
-];
+] as const satisfies readonly ModuleDefinition[];
+
+export type ModuleSlug = (typeof MODULES)[number]["slug"];
+export const MODULE_SLUGS: readonly ModuleSlug[] = MODULES.map((m) => m.slug);

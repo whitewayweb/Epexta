@@ -70,6 +70,7 @@ export interface Config {
     users: User;
     organisations: Organisation;
     'api-keys': ApiKey;
+    'module-entitlements': ModuleEntitlement;
     'wordpress-connections': WordpressConnection;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -81,6 +82,7 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     organisations: OrganisationsSelect<false> | OrganisationsSelect<true>;
     'api-keys': ApiKeysSelect<false> | ApiKeysSelect<true>;
+    'module-entitlements': ModuleEntitlementsSelect<false> | ModuleEntitlementsSelect<true>;
     'wordpress-connections': WordpressConnectionsSelect<false> | WordpressConnectionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -182,6 +184,21 @@ export interface ApiKey {
   createdAt: string;
 }
 /**
+ * Which modules are enabled for which organisation. Superadmin-only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "module-entitlements".
+ */
+export interface ModuleEntitlement {
+  id: number;
+  organisation: number | Organisation;
+  moduleSlug: 'wordpress';
+  enabled?: boolean | null;
+  source?: ('manual' | 'billing' | 'migration') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * WordPress sites connected to an organisation. An organisation may connect more than one.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -241,6 +258,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'api-keys';
         value: number | ApiKey;
+      } | null)
+    | ({
+        relationTo: 'module-entitlements';
+        value: number | ModuleEntitlement;
       } | null)
     | ({
         relationTo: 'wordpress-connections';
@@ -335,6 +356,18 @@ export interface ApiKeysSelect<T extends boolean = true> {
   user?: T;
   name?: T;
   hashedKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "module-entitlements_select".
+ */
+export interface ModuleEntitlementsSelect<T extends boolean = true> {
+  organisation?: T;
+  moduleSlug?: T;
+  enabled?: T;
+  source?: T;
   updatedAt?: T;
   createdAt?: T;
 }
