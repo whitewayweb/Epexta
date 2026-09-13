@@ -24,6 +24,23 @@ See [plan.md](plan.md) for the phased roadmap.
 - Adding a new module means creating `modules/<name>/`, registering its collection
   in `payload.config.ts`, and adding routes under `/api/<name>/mcp` and `/<name>/connect`
   — nothing in `lib/`, `collections/`, or other modules should need to change.
+- Every new module's first PR must wire up entitlement enforcement from day one
+  (see `lib/entitlements.ts`, `MODULE_ENTITLEMENTS_PLAN.md`), not retrofit it later:
+  1. Every page under the module's `overviewPath`/`connectPath` calls
+     `requireModuleEnabledForUser` and renders a "not included in your plan" state
+     (see `components/module-not-enabled.tsx`) when disabled.
+  2. Every Server Action in `modules/<name>/actions.ts` checks entitlement before
+     doing anything module-specific (the one exception: an action with its own lazy
+     organisation-creation fallback checks entitlement *after* resolving/creating the
+     organisation, not before).
+  3. `app/api/<name>/mcp/route.ts` computes `moduleEnabled` once in `verifyToken` and
+     registers every tool through a `registerGatedTool` wrapper (see the WordPress
+     route for the pattern) — never a raw `server.registerTool` call, since a tool
+     that reads `extra` directly instead of going through a per-tool helper can
+     otherwise skip a per-handler convention entirely.
+  4. `components/app-sidebar.tsx`'s module list is filtered by `enabledModuleSlugs`,
+     already passed down from `app/(frontend)/(app)/layout.tsx` — no per-module
+     change needed there as long as the module is in `lib/modules.ts`'s registry.
 
 ## Scalability and future evolution
 
