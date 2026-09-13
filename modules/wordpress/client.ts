@@ -14,6 +14,14 @@ export interface WpMedia {
   source_url: string;
 }
 
+interface WpPostTitle {
+  id: number;
+  title: {
+    raw?: string;
+    rendered: string;
+  };
+}
+
 export interface CreatePostInput {
   title: string;
   contentHtml: string;
@@ -117,6 +125,11 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
   function listTags() {
     return wpFetch(`/wp/v2/tags?per_page=100&_fields=id,name,slug,count`);
+  }
+
+  async function getPostTitle(postId: number): Promise<string> {
+    const post = await wpFetch<WpPostTitle>(`/wp/v2/posts/${postId}?context=edit&_fields=id,title`);
+    return post.title.raw ?? post.title.rendered;
   }
 
   const YOAST_META_KEYS: Record<"seoTitle" | "seoDescription" | "focusKeyphrase", string> = {
@@ -232,7 +245,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     return updatePost(postId, { status: "publish" });
   }
 
-  async function uploadMediaBuffer(buffer: Buffer, filename: string, mimeType: string, altText?: string) {
+  async function uploadMediaBuffer(buffer: Buffer, filename: string, mimeType: string, postTitle: string) {
     const media = await wpFetch<WpMedia>(`/wp/v2/media`, {
       method: "POST",
       headers: {
@@ -242,30 +255,26 @@ export function createWordPressClient(credentials: WordPressCredentials) {
       body: new Uint8Array(buffer),
     });
 
-    if (altText) {
-      await wpFetch(`/wp/v2/media/${media.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ alt_text: altText }),
-      });
-    }
-
-    return media;
+    return wpFetch<WpMedia>(`/wp/v2/media/${media.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: postTitle, alt_text: postTitle }),
+    });
   }
 
-  async function uploadMediaFromUrl(imageUrl: string, filename: string, altText?: string) {
+  async function uploadMediaFromUrl(imageUrl: string, filename: string, postTitle: string) {
     const imgRes = await fetch(imageUrl);
     if (!imgRes.ok) {
       throw new WordPressApiError(`Could not fetch image from ${imageUrl}: ${imgRes.status}`);
     }
     const contentType = imgRes.headers.get("content-type") ?? "image/png";
     const buffer = Buffer.from(await imgRes.arrayBuffer());
-    return uploadMediaBuffer(buffer, filename, contentType, altText);
+    return uploadMediaBuffer(buffer, filename, contentType, postTitle);
   }
 
-  function uploadMediaFromBase64(base64Data: string, filename: string, mimeType: string, altText?: string) {
+  function uploadMediaFromBase64(base64Data: string, filename: string, mimeType: string, postTitle: string) {
     const buffer = Buffer.from(base64Data, "base64");
-    return uploadMediaBuffer(buffer, filename, mimeType, altText);
+    return uploadMediaBuffer(buffer, filename, mimeType, postTitle);
   }
 
   function setFeaturedImage(postId: number, mediaId: number) {
@@ -282,6 +291,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     listPosts,
     listCategories,
     listTags,
+    getPostTitle,
     createPost,
     updatePost,
     publishPost,

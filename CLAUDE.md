@@ -58,6 +58,12 @@ primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@lates
 
 ## MCP tool guidance — follow the protocol's own division of labor
 
+### Post image metadata
+
+When creating an image for a WordPress post, set the WordPress media **Title** and
+**Alternative Text** to the post title verbatim. Do not derive either field from
+the filename or replace it with a separate image description.
+
 Per the MCP spec and the MCP project's own guidance on server `instructions`
 (https://blog.modelcontextprotocol.io/posts/2025-11-03-using-server-instructions/):
 "Server instructions are for explaining your tools, not for modifying how the model

@@ -489,7 +489,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Set Featured Image",
       description:
-        "Upload an image and set it as a post's featured image. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 with mimeType (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
+        "Upload an image and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 with mimeType (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
       inputSchema: z.object({
               siteId: siteIdSchema,
               postId: z.number().int(),
@@ -500,10 +500,9 @@ const rawHandler = createMcpHandler(
                 .optional()
                 .describe("Required if imageBase64 is used, e.g. image/png"),
               filename: z.string().default("featured-image.png"),
-              altText: z.string().optional(),
             }),
     },
-    async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename, altText }, ctx) => {
+    async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename }, ctx) => {
       try {
         const resolved = clientFromContext(ctx, siteId);
         if (!resolved.ok) return resolved.elicit;
@@ -515,13 +514,14 @@ const rawHandler = createMcpHandler(
           throw new ToolError("Provide only one of imageUrl or imageBase64, not both.");
         }
 
+        const postTitle = await client.getPostTitle(postId);
         const media = imageUrl
-          ? await client.uploadMediaFromUrl(imageUrl, filename, altText)
+          ? await client.uploadMediaFromUrl(imageUrl, filename, postTitle)
           : await client.uploadMediaFromBase64(
               imageBase64!,
               filename,
               mimeType ?? "image/png",
-              altText
+              postTitle
             );
 
         const post = await client.setFeaturedImage(postId, media.id);
