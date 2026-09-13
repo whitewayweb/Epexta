@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/site/logo-mark";
 import { WordPressIcon } from "@/components/site/wordpress-icon";
 import { Button } from "@/components/ui/button";
-import type { ModuleDefinition } from "@/lib/modules";
+import type { ModuleDefinition, ModuleSlug } from "@/lib/modules";
 import {
   Sidebar,
   SidebarContent,
@@ -32,8 +32,15 @@ const SETTINGS_LINKS = [
   { href: "/settings/api-key", label: "API key", icon: KeyRound },
 ];
 
-export function AppSidebar({ email }: { email: string }) {
+export function AppSidebar({
+  email,
+  enabledModuleSlugs,
+}: {
+  email: string;
+  enabledModuleSlugs: readonly ModuleSlug[];
+}) {
   const pathname = usePathname();
+  const visibleModules = MODULES.filter((module) => enabledModuleSlugs.includes(module.slug));
 
   return (
     <Sidebar>
@@ -49,7 +56,7 @@ export function AppSidebar({ email }: { email: string }) {
           <SidebarGroupLabel>Modules</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {MODULES.map((module) => (
+              {visibleModules.map((module) => (
                 <SidebarMenuItem key={module.slug}>
                   <SidebarMenuButton
                     isActive={pathname === module.overviewPath || pathname.startsWith(`${module.connectPath}`)}

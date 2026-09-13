@@ -2,6 +2,7 @@ import type { AuthInfo, InputRequiredResult, ServerContext } from "@modelcontext
 import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprotocol/server";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { z } from "zod";
+import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { getUserByApiKey } from "@/lib/session";
 import {
@@ -72,11 +73,12 @@ function textResult(data: unknown) {
 class ToolError extends Error {}
 
 function errorResult(error: unknown) {
-  // ToolError (our own deliberate, user-facing messages) and WordPressApiError (the
-  // target site's own response) are both safe to relay to the calling LLM verbatim.
-  // Anything else is unexpected - log it for us, but never echo its raw message back,
-  // since it could describe our database, encryption, or network internals.
-  if (error instanceof ToolError || error instanceof WordPressApiError) {
+  // ToolError (our own deliberate, user-facing messages), WordPressApiError (the
+  // target site's own response), and ModuleNotEnabledError (registerGatedTool's
+  // entitlement check) are all safe to relay to the calling LLM verbatim. Anything
+  // else is unexpected - log it for us, but never echo its raw message back, since
+  // it could describe our database, encryption, or network internals.
+  if (error instanceof ToolError || error instanceof WordPressApiError || error instanceof ModuleNotEnabledError) {
     return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
   }
 
@@ -102,9 +104,10 @@ async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInf
     // to the LLM as a clear tool-call error (see resolveConnection) rather than a generic
     // 401, so it can tell the user what to do instead of just "unauthorized".
     const organisation = await getUserOrganisation(user.id);
-    const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
+    const moduleEnabled = organisation ? await isModuleEnabled(organisation.organisationId, "wordpress") : false;
+    const connections = moduleEnabled && organisation ? await listWordPressConnections(organisation.organisationId) : [];
 
-    return { token: bearerToken, clientId: user.id, scopes: [], extra: { connections } };
+    return { token: bearerToken, clientId: user.id, scopes: [], extra: { connections, moduleEnabled } };
   } catch (error) {
     console.error("[wordpress-mcp] auth threw an error:", error);
     return undefined;
@@ -244,7 +247,29 @@ const siteIdSchema = z
 
 const rawHandler = createMcpHandler(
   (server) => {
-  server.registerTool(
+  // Wraps server.registerTool so entitlement enforcement is structural - a tool
+  // registered this way can't skip the check, unlike a per-handler convention that
+  // list_sites (see below) would have silently missed by reading extra.connections
+  // directly instead of going through resolveConnection/clientFromContext. Catches
+  // assertModuleEnabled's throw itself: each tool handler's own try/catch only wraps
+  // the call to `handler`, which runs after this check, so a throw here would
+  // otherwise escape uncaught.
+  const registerGatedTool: typeof server.registerTool = ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
+    return server.registerTool(name, config as never, (async (...handlerArgs: unknown[]) => {
+      try {
+        const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
+        const moduleEnabled = Boolean(
+          (ctx.http?.authInfo?.extra as { moduleEnabled?: boolean } | undefined)?.moduleEnabled
+        );
+        assertModuleEnabled(moduleEnabled, "wordpress");
+      } catch (e) {
+        return errorResult(e);
+      }
+      return handler(...handlerArgs);
+    }) as never);
+  }) as typeof server.registerTool;
+
+  registerGatedTool(
     "list_sites",
     {
       title: "List Connected WordPress Sites",
@@ -264,7 +289,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "list_posts",
     {
       title: "List WordPress Posts",
@@ -292,7 +317,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "list_categories",
     {
       title: "List Categories",
@@ -310,7 +335,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "list_tags",
     {
       title: "List Tags",
@@ -328,7 +353,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "create_post",
     {
       title: "Create Blog Post",
@@ -395,7 +420,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "update_post",
     {
       title: "Update Blog Post",
@@ -438,7 +463,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "publish_post",
     {
       title: "Publish Post",
@@ -460,7 +485,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "check_seo",
     {
       title: "Check SEO",
@@ -484,7 +509,7 @@ const rawHandler = createMcpHandler(
     }
   );
 
-  server.registerTool(
+  registerGatedTool(
     "set_featured_image",
     {
       title: "Set Featured Image",

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { isModuleEnabled, requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getPayloadClient } from "@/lib/payload";
 import { getCurrentUser } from "@/lib/session";
 import {
@@ -57,6 +58,19 @@ function firstIssueMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid input.";
 }
 
+/**
+ * Shared entitlement guard for every action below that presupposes an organisation
+ * already exists (everything except addConnectionAction, which has its own rare
+ * lazy-create fallback for a user with no organisation at all).
+ */
+async function requireWordPressEnabled(userId: string): Promise<string | null> {
+  const entitlement = await requireModuleEnabledForUser(userId, "wordpress");
+  if (entitlement.ok) return null;
+  return entitlement.reason === "not_enabled"
+    ? "WordPress isn't included in your organisation's plan."
+    : "You must belong to an organisation.";
+}
+
 function parseConnectionForm(formData: FormData) {
   return connectionSchema.safeParse({
     siteUrl: formData.get("siteUrl"),
@@ -94,8 +108,15 @@ export async function addConnectionAction(
     return { error: "Only organisation admins can add a site.", success: false };
   }
   if (!organisation) {
+    // Rare case (normal signup already creates an organisation via signupAction) - not
+    // itself entitlement-gated, since resolving/creating the organisation isn't a
+    // WordPress-specific action.
     const organisationId = await createOrganisationForUser(user.id);
     organisation = { organisationId, role: "admin" };
+  }
+
+  if (!(await isModuleEnabled(organisation.organisationId, "wordpress"))) {
+    return { error: "WordPress isn't included in your organisation's plan.", success: false };
   }
 
   try {
@@ -116,6 +137,11 @@ export async function updateConnectionAction(
   const user = await getCurrentUser();
   if (!user) {
     return { error: "You must be logged in.", success: false };
+  }
+
+  const entitlementError = await requireWordPressEnabled(user.id);
+  if (entitlementError) {
+    return { error: entitlementError, success: false };
   }
 
   const organisation = await getUserOrganisation(user.id);
@@ -153,6 +179,11 @@ export async function removeConnectionAction(
     return { error: "You must be logged in.", success: false };
   }
 
+  const entitlementError = await requireWordPressEnabled(user.id);
+  if (entitlementError) {
+    return { error: entitlementError, success: false };
+  }
+
   const organisation = await getUserOrganisation(user.id);
   if (!organisation || organisation.role !== "admin") {
     return { error: "Only organisation admins can remove a connection.", success: false };
@@ -181,6 +212,11 @@ export async function inviteMemberAction(
   const user = await getCurrentUser();
   if (!user) {
     return { error: "You must be logged in.", success: false };
+  }
+
+  const entitlementError = await requireWordPressEnabled(user.id);
+  if (entitlementError) {
+    return { error: entitlementError, success: false };
   }
 
   const organisation = await getUserOrganisation(user.id);
@@ -216,6 +252,11 @@ export async function removeMemberAction(
   const user = await getCurrentUser();
   if (!user) {
     return { error: "You must be logged in.", success: false };
+  }
+
+  const entitlementError = await requireWordPressEnabled(user.id);
+  if (entitlementError) {
+    return { error: entitlementError, success: false };
   }
 
   const organisation = await getUserOrganisation(user.id);

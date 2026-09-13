@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { findMember, memberUserId, toMemberInput, type MemberRow, type OrganisationRole } from "./members";
 import { getPayloadClient } from "./payload";
 
@@ -11,8 +12,13 @@ export interface OrganisationMembership {
  * Assumes a user belongs to at most one organisation - `limit: 1` returns whichever
  * matches first. Every admin/member check in modules/wordpress/actions.ts relies on
  * this being unambiguous, so multi-org membership can't be introduced here alone.
+ *
+ * Wrapped in React's cache() so a page and its entitlement check (which both need
+ * this lookup independently) share one query per request - this is request-scoped
+ * memoization only, not a cross-request cache, so a change still takes effect on the
+ * very next request.
  */
-export async function getUserOrganisation(userId: string): Promise<OrganisationMembership | null> {
+export const getUserOrganisation = cache(async (userId: string): Promise<OrganisationMembership | null> => {
   const payload = await getPayloadClient();
   const result = await payload.find({
     collection: "organisations",
@@ -28,7 +34,7 @@ export async function getUserOrganisation(userId: string): Promise<OrganisationM
   if (!member) return null;
 
   return { organisationId: String(doc.id), role: member.role };
-}
+});
 
 /**
  * Creates a new organisation with this user as its sole admin. If no name is given (or it's

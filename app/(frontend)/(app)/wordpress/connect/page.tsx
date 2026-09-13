@@ -1,7 +1,9 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ModuleNotEnabled } from "@/components/module-not-enabled";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
@@ -17,6 +19,14 @@ export default async function ConnectPage({
 }) {
   const user = await requireUser(CONNECT_PATH);
   const { edit } = await searchParams;
+
+  // A user with no organisation at all is rare (signupAction already creates one) but
+  // still needs the ordinary connect form, not this "not included" message - only an
+  // org that exists and lacks the entitlement sees it.
+  const entitlement = await requireModuleEnabledForUser(user.id, "wordpress");
+  if (!entitlement.ok && entitlement.reason === "not_enabled") {
+    return <ModuleNotEnabled moduleName="WordPress" />;
+  }
 
   const organisation = await getUserOrganisation(user.id);
   // Members can't add, edit, or remove a connection - nothing for them to do on this page.

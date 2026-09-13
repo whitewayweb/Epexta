@@ -1,7 +1,9 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { ModuleNotEnabled } from "@/components/module-not-enabled";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
@@ -12,6 +14,12 @@ const ADD_SITE_PATH = "/wordpress/connect";
 
 export default async function WordPressOverviewPage() {
   const user = await requireUser(OVERVIEW_PATH);
+
+  const entitlement = await requireModuleEnabledForUser(user.id, "wordpress");
+  if (!entitlement.ok && entitlement.reason === "not_enabled") {
+    return <ModuleNotEnabled moduleName="WordPress" />;
+  }
+
   const organisation = await getUserOrganisation(user.id);
   const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
   const isAdmin = organisation?.role === "admin";
