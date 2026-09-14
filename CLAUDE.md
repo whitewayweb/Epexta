@@ -278,13 +278,26 @@ already an authenticated superadmin. The very first user ever created becomes
 npm run typecheck
 npm run lint
 npm run knip
+npm run test
 npm run build
 ```
 
-All four must pass before considering a change done. `knip` loads `payload.config.ts`
+All five must pass before considering a change done. `knip` loads `payload.config.ts`
 standalone (not through Next's bundler), so anything reachable from it — collection
 files — must use **relative imports**, not the `@/` alias, or knip's loader breaks.
 Everywhere else (Server Actions, pages, components), prefer the `@/` alias.
+
+`npm run test` runs Vitest (`vitest.config.ts`). Most of this suite is integration
+tests that talk to the real database via Payload's local API (`getPayloadClient()`) —
+there is no mocked Postgres adapter, and a Postgres-specific feature like transactions
+can't be verified against one. Tests run serially (`fileParallelism: false`) so
+assertions about committed rows never race each other over the same connection pool.
+`vitest.setup.ts` loads `.env.local` (Next.js does this automatically; a standalone
+Vitest process doesn't), so `DATABASE_URL`/`PAYLOAD_SECRET`/`ENCRYPTION_KEY` must be
+set there the same as for `npm run dev`. Co-locate a module's tests next to it as
+`*.test.ts` (see `lib/db-transactions.test.ts`) rather than a separate top-level test
+tree, the same reasoning as everywhere else in this codebase preferring locality over
+a parallel structure.
 
 ## Deployment
 

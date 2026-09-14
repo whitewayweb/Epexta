@@ -45,7 +45,17 @@ export default buildConfig({
   },
   db: postgresAdapter({
     pool: getDatabasePoolConfig(),
-    transactionOptions: false,
+    // Real transactions are required - see lib/db-transactions.test.ts and "Enabling
+    // database transactions" in GOOGLE_PERFORMANCE_PLAN.md. `transactionOptions: false`
+    // used to be set here with no more explanation than "compatibility issues with the
+    // connection pool"; with it removed, beginTransaction/commitTransaction/
+    // rollbackTransaction give genuine atomicity and isolation against this project's
+    // pooled Neon endpoint (verified empirically, not assumed). Never hold a Payload
+    // transaction open across an external network call (e.g. a Google OAuth token
+    // exchange) - do the network call first, then run the DB statements inside a short
+    // transaction, so a slow upstream call can't pin a pooled connection for its
+    // duration under Vercel's serverless concurrency.
+    //
     // Dev-mode auto-push writes a "dev" marker into payload_migrations that makes
     // `payload migrate` prompt for confirmation on every future run, forever. Schema
     // changes always go through committed migration files instead (migrate:create,
