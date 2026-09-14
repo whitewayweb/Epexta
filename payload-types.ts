@@ -74,6 +74,8 @@ export interface Config {
     'wordpress-connections': WordpressConnection;
     'google-connections': GoogleConnection;
     'google-oauth-states': GoogleOauthState;
+    'google-search-console-mappings': GoogleSearchConsoleMapping;
+    'google-analytics-mappings': GoogleAnalyticsMapping;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -88,6 +90,8 @@ export interface Config {
     'wordpress-connections': WordpressConnectionsSelect<false> | WordpressConnectionsSelect<true>;
     'google-connections': GoogleConnectionsSelect<false> | GoogleConnectionsSelect<true>;
     'google-oauth-states': GoogleOauthStatesSelect<false> | GoogleOauthStatesSelect<true>;
+    'google-search-console-mappings': GoogleSearchConsoleMappingsSelect<false> | GoogleSearchConsoleMappingsSelect<true>;
+    'google-analytics-mappings': GoogleAnalyticsMappingsSelect<false> | GoogleAnalyticsMappingsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -300,6 +304,58 @@ export interface GoogleOauthState {
   createdAt: string;
 }
 /**
+ * Which Search Console property reports for which connected WordPress site.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-mappings".
+ */
+export interface GoogleSearchConsoleMapping {
+  id: number;
+  organisation: number | Organisation;
+  wordpressConnection: number | WordpressConnection;
+  googleConnection: number | GoogleConnection;
+  /**
+   * e.g. "sc-domain:example.com" or a URL-prefix property.
+   */
+  searchConsolePropertyUrl: string;
+  confirmedBy: number | User;
+  confirmedAt: string;
+  lastValidatedAt?: string | null;
+  status: 'active' | 'needs_reconnect' | 'needs_remapping' | 'superseded';
+  replacedAt?: string | null;
+  replacedBy?: (number | null) | GoogleSearchConsoleMapping;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Which GA4 property reports for which connected WordPress site.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-mappings".
+ */
+export interface GoogleAnalyticsMapping {
+  id: number;
+  organisation: number | Organisation;
+  wordpressConnection: number | WordpressConnection;
+  googleConnection: number | GoogleConnection;
+  /**
+   * GA4 property identifier.
+   */
+  ga4PropertyId: string;
+  /**
+   * The GA4 property's own configured reporting timezone, read from the Admin API at mapping time.
+   */
+  reportingTimezone?: string | null;
+  confirmedBy: number | User;
+  confirmedAt: string;
+  lastValidatedAt?: string | null;
+  status: 'active' | 'needs_reconnect' | 'needs_remapping' | 'superseded';
+  replacedAt?: string | null;
+  replacedBy?: (number | null) | GoogleAnalyticsMapping;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -350,6 +406,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'google-oauth-states';
         value: number | GoogleOauthState;
+      } | null)
+    | ({
+        relationTo: 'google-search-console-mappings';
+        value: number | GoogleSearchConsoleMapping;
+      } | null)
+    | ({
+        relationTo: 'google-analytics-mappings';
+        value: number | GoogleAnalyticsMapping;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -497,6 +561,43 @@ export interface GoogleOauthStatesSelect<T extends boolean = true> {
   capability?: T;
   flow?: T;
   expiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-mappings_select".
+ */
+export interface GoogleSearchConsoleMappingsSelect<T extends boolean = true> {
+  organisation?: T;
+  wordpressConnection?: T;
+  googleConnection?: T;
+  searchConsolePropertyUrl?: T;
+  confirmedBy?: T;
+  confirmedAt?: T;
+  lastValidatedAt?: T;
+  status?: T;
+  replacedAt?: T;
+  replacedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-mappings_select".
+ */
+export interface GoogleAnalyticsMappingsSelect<T extends boolean = true> {
+  organisation?: T;
+  wordpressConnection?: T;
+  googleConnection?: T;
+  ga4PropertyId?: T;
+  reportingTimezone?: T;
+  confirmedBy?: T;
+  confirmedAt?: T;
+  lastValidatedAt?: T;
+  status?: T;
+  replacedAt?: T;
+  replacedBy?: T;
   updatedAt?: T;
   createdAt?: T;
 }
