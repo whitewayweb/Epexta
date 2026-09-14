@@ -1,4 +1,5 @@
 import { checkAndIncrementQuota, getOrRefreshReport, type FetchFreshResult } from "../../lib/report-cache";
+import type { ApiRequestResult } from "../google-connections";
 import { getWordPressConnection } from "../wordpress/organisation";
 import { createWordPressClient } from "../wordpress/client";
 import { getActiveMappingForWordPressConnection } from "./mappings";
@@ -81,13 +82,17 @@ export function priorPeriod(range: DateRange): DateRange {
 
 class ConsentExpiredError extends Error {}
 
-async function fetchAndSummarize(
+/**
+ * Shared quota-check + Search Console call + error-mapping pipeline for both the
+ * post-scoped and site-scoped report fetchers below - they differ only in which
+ * querySearchAnalytics/querySiteSearchAnalytics call they make, so that's the only
+ * thing left as a parameter. Mirrors runGa4ReportWithQuota in
+ * modules/google-analytics/reporting.ts.
+ */
+async function runSearchConsoleQueryWithQuota(
   organisationId: string,
   wordpressConnectionId: string,
-  googleConnectionId: string,
-  propertyUrl: string,
-  pagePath: string,
-  range: DateRange
+  apiCall: () => Promise<ApiRequestResult>
 ): Promise<FetchFreshResult<PostPerformanceMetrics>> {
   const quota = await checkAndIncrementQuota({
     quotaCollection: "google-search-console-quota-usage",
@@ -98,12 +103,7 @@ async function fetchAndSummarize(
   });
   if (!quota.allowed) return { status: "temporary_failure" };
 
-  const result = await querySearchAnalytics(googleConnectionId, {
-    propertyUrl,
-    pagePath,
-    startDate: range.startDate,
-    endDate: range.endDate,
-  });
+  const result = await apiCall();
 
   if (result.status === "error") {
     if (result.reason === "revoked" || result.reason === "needs_reconnect") throw new ConsentExpiredError();
@@ -113,6 +113,19 @@ async function fetchAndSummarize(
 
   const metrics = summarizeSearchAnalyticsRows(result.data as { rows?: unknown[] } as Parameters<typeof summarizeSearchAnalyticsRows>[0]);
   return { status: "ok", data: metrics, freshnessState: "fresh" };
+}
+
+function fetchAndSummarize(
+  organisationId: string,
+  wordpressConnectionId: string,
+  googleConnectionId: string,
+  propertyUrl: string,
+  pagePath: string,
+  range: DateRange
+): Promise<FetchFreshResult<PostPerformanceMetrics>> {
+  return runSearchConsoleQueryWithQuota(organisationId, wordpressConnectionId, () =>
+    querySearchAnalytics(googleConnectionId, { propertyUrl, pagePath, startDate: range.startDate, endDate: range.endDate })
+  );
 }
 
 /**
@@ -220,36 +233,16 @@ export type SitePerformanceResult =
   | { status: "temporary_failure" }
   | { status: "unavailable" };
 
-async function fetchAndSummarizeSite(
+function fetchAndSummarizeSite(
   organisationId: string,
   wordpressConnectionId: string,
   googleConnectionId: string,
   propertyUrl: string,
   range: DateRange
 ): Promise<FetchFreshResult<PostPerformanceMetrics>> {
-  const quota = await checkAndIncrementQuota({
-    quotaCollection: "google-search-console-quota-usage",
-    organisationId,
-    wordpressConnectionId,
-    windowMs: QUOTA_WINDOW_MS,
-    limit: QUOTA_LIMIT_PER_WINDOW,
-  });
-  if (!quota.allowed) return { status: "temporary_failure" };
-
-  const result = await querySiteSearchAnalytics(googleConnectionId, {
-    propertyUrl,
-    startDate: range.startDate,
-    endDate: range.endDate,
-  });
-
-  if (result.status === "error") {
-    if (result.reason === "revoked" || result.reason === "needs_reconnect") throw new ConsentExpiredError();
-    if (result.reason === "temporary_failure" || result.reason === "forbidden") return { status: "temporary_failure" };
-    return { status: "unavailable" };
-  }
-
-  const metrics = summarizeSearchAnalyticsRows(result.data as { rows?: unknown[] } as Parameters<typeof summarizeSearchAnalyticsRows>[0]);
-  return { status: "ok", data: metrics, freshnessState: "fresh" };
+  return runSearchConsoleQueryWithQuota(organisationId, wordpressConnectionId, () =>
+    querySiteSearchAnalytics(googleConnectionId, { propertyUrl, startDate: range.startDate, endDate: range.endDate })
+  );
 }
 
 /**

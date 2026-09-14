@@ -7,6 +7,7 @@ import * as migration_20260914_094627_google_site_hub_mappings from './20260914_
 import * as migration_20260914_095814_cascade_delete_fks from './20260914_095814_cascade_delete_fks';
 import * as migration_20260914_105016_google_site_hub_reporting from './20260914_105016_google_site_hub_reporting';
 import * as migration_20260914_120000_cascade_delete_reporting_fks from './20260914_120000_cascade_delete_reporting_fks';
+import * as migration_20260914_223935_add_site_performance_report_type from './20260914_223935_add_site_performance_report_type';
 
 export const migrations = [
   {
@@ -47,11 +48,16 @@ export const migrations = [
   {
     up: migration_20260914_105016_google_site_hub_reporting.up,
     down: migration_20260914_105016_google_site_hub_reporting.down,
-    name: '20260914_105016_google_site_hub_reporting'
+    name: '20260914_105016_google_site_hub_reporting',
   },
   {
     up: migration_20260914_120000_cascade_delete_reporting_fks.up,
     down: migration_20260914_120000_cascade_delete_reporting_fks.down,
     name: '20260914_120000_cascade_delete_reporting_fks',
+  },
+  {
+    up: migration_20260914_223935_add_site_performance_report_type.up,
+    down: migration_20260914_223935_add_site_performance_report_type.down,
+    name: '20260914_223935_add_site_performance_report_type'
   },
 ];

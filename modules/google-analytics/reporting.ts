@@ -3,6 +3,7 @@ import { checkAndIncrementQuota, getOrRefreshReport, type FetchFreshResult } fro
 import { getWordPressConnection } from "../wordpress/organisation";
 import { createWordPressClient } from "../wordpress/client";
 import { getActiveMappingForWordPressConnection } from "./mappings";
+import type { ApiRequestResult } from "../google-connections";
 import { runReport, runSiteReport, summarizeRunReportRows, extractPropertyQuota, type Ga4Metrics } from "./client";
 
 const SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -101,14 +102,16 @@ async function recordGa4Quota(ga4PropertyId: string, quota: ReturnType<typeof ex
   }
 }
 
-async function fetchAndSummarize(
+/**
+ * Shared quota-check + GA4 call + error-mapping pipeline for both the post-scoped and
+ * site-scoped report fetchers below - they differ only in which runReport/runSiteReport
+ * call they make, so that's the only thing left as a parameter.
+ */
+async function runGa4ReportWithQuota(
   organisationId: string,
   wordpressConnectionId: string,
-  googleConnectionId: string,
   ga4PropertyId: string,
-  hostName: string,
-  pagePathPlusQueryString: string,
-  range: DateRange
+  apiCall: () => Promise<ApiRequestResult>
 ): Promise<FetchFreshResult<Ga4Metrics>> {
   const quota = await checkAndIncrementQuota({
     quotaCollection: "google-analytics-quota-usage",
@@ -119,13 +122,7 @@ async function fetchAndSummarize(
   });
   if (!quota.allowed) return { status: "temporary_failure" };
 
-  const result = await runReport(googleConnectionId, {
-    ga4PropertyId,
-    hostName,
-    pagePathPlusQueryString,
-    startDate: range.startDate,
-    endDate: range.endDate,
-  });
+  const result = await apiCall();
 
   if (result.status === "error") {
     if (result.reason === "revoked" || result.reason === "needs_reconnect") throw new ConsentExpiredError();
@@ -136,6 +133,20 @@ async function fetchAndSummarize(
   const response = result.data as Parameters<typeof summarizeRunReportRows>[0];
   await recordGa4Quota(ga4PropertyId, extractPropertyQuota(response));
   return { status: "ok", data: summarizeRunReportRows(response), freshnessState: "fresh" };
+}
+
+function fetchAndSummarize(
+  organisationId: string,
+  wordpressConnectionId: string,
+  googleConnectionId: string,
+  ga4PropertyId: string,
+  hostName: string,
+  pagePathPlusQueryString: string,
+  range: DateRange
+): Promise<FetchFreshResult<Ga4Metrics>> {
+  return runGa4ReportWithQuota(organisationId, wordpressConnectionId, ga4PropertyId, () =>
+    runReport(googleConnectionId, { ga4PropertyId, hostName, pagePathPlusQueryString, startDate: range.startDate, endDate: range.endDate })
+  );
 }
 
 /**
@@ -248,7 +259,7 @@ export type SitePerformanceResult =
   | { status: "temporary_failure" }
   | { status: "unavailable" };
 
-async function fetchAndSummarizeSite(
+function fetchAndSummarizeSite(
   organisationId: string,
   wordpressConnectionId: string,
   googleConnectionId: string,
@@ -256,31 +267,9 @@ async function fetchAndSummarizeSite(
   hostName: string,
   range: DateRange
 ): Promise<FetchFreshResult<Ga4Metrics>> {
-  const quota = await checkAndIncrementQuota({
-    quotaCollection: "google-analytics-quota-usage",
-    organisationId,
-    wordpressConnectionId,
-    windowMs: QUOTA_WINDOW_MS,
-    limit: QUOTA_LIMIT_PER_WINDOW,
-  });
-  if (!quota.allowed) return { status: "temporary_failure" };
-
-  const result = await runSiteReport(googleConnectionId, {
-    ga4PropertyId,
-    hostName,
-    startDate: range.startDate,
-    endDate: range.endDate,
-  });
-
-  if (result.status === "error") {
-    if (result.reason === "revoked" || result.reason === "needs_reconnect") throw new ConsentExpiredError();
-    if (result.reason === "temporary_failure" || result.reason === "forbidden") return { status: "temporary_failure" };
-    return { status: "unavailable" };
-  }
-
-  const response = result.data as Parameters<typeof summarizeRunReportRows>[0];
-  await recordGa4Quota(ga4PropertyId, extractPropertyQuota(response));
-  return { status: "ok", data: summarizeRunReportRows(response), freshnessState: "fresh" };
+  return runGa4ReportWithQuota(organisationId, wordpressConnectionId, ga4PropertyId, () =>
+    runSiteReport(googleConnectionId, { ga4PropertyId, hostName, startDate: range.startDate, endDate: range.endDate })
+  );
 }
 
 /**
