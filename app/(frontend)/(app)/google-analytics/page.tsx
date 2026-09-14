@@ -34,12 +34,19 @@ export default async function GoogleAnalyticsOverviewPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Google Analytics</h1>
-        {isAdmin && (
-          <Button render={<Link href={CONNECT_PATH} />}>
-            <Plus />
-            Manage connection
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {mappings.length > 0 && (
+            <Button variant="outline" render={<Link href="/google-analytics/performance" />}>
+              View performance
+            </Button>
+          )}
+          {isAdmin && (
+            <Button render={<Link href={CONNECT_PATH} />}>
+              <Plus />
+              Manage connection
+            </Button>
+          )}
+        </div>
       </div>
 
       {mappings.length === 0 ? (

@@ -20,6 +20,13 @@ export interface ConnectionLifecycleHooks {
    * decoupling isConnectionReferenced already provides for Google connections.
    */
   isWordPressConnectionReferenced: (wordpressConnectionId: string) => Promise<boolean>;
+  /**
+   * Invalidates (deletes, not just lets age out) every report snapshot tied to a mapping
+   * referencing this connection - called after a successful reconnect, since property
+   * access or the underlying data can have changed. See "Reconnect invalidates stale
+   * caches" in GOOGLE_PERFORMANCE_PLAN.md.
+   */
+  invalidateSnapshotsForConnection: (connectionId: string) => Promise<void>;
 }
 
 const registry = new Map<GoogleCapability, ConnectionLifecycleHooks>();

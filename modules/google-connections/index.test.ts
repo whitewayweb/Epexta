@@ -291,6 +291,7 @@ describe("modules/google-connections", () => {
         isConnectionReferenced: vi.fn().mockResolvedValue(false),
         markMappingsNeedingReconnect,
         isWordPressConnectionReferenced: vi.fn().mockResolvedValue(false),
+        invalidateSnapshotsForConnection: vi.fn().mockResolvedValue(undefined),
       });
 
       await revokeConnection(organisationId, connectionId, adminUserId);
@@ -332,6 +333,7 @@ describe("modules/google-connections", () => {
         isConnectionReferenced: vi.fn().mockResolvedValue(true),
         markMappingsNeedingReconnect: vi.fn().mockResolvedValue(undefined),
         isWordPressConnectionReferenced: vi.fn().mockResolvedValue(false),
+        invalidateSnapshotsForConnection: vi.fn().mockResolvedValue(undefined),
       });
 
       const result = await disconnectOrDelete(organisationId, connectionId, adminUserId);
@@ -347,6 +349,7 @@ describe("modules/google-connections", () => {
         isConnectionReferenced: vi.fn().mockResolvedValue(false),
         markMappingsNeedingReconnect: vi.fn().mockResolvedValue(undefined),
         isWordPressConnectionReferenced: vi.fn().mockResolvedValue(false),
+        invalidateSnapshotsForConnection: vi.fn().mockResolvedValue(undefined),
       });
 
       const result = await disconnectOrDelete(organisationId, connectionId, adminUserId);

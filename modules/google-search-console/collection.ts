@@ -43,7 +43,14 @@ export const GoogleSearchConsoleMappings: CollectionConfig = {
     },
     create: () => false,
     update: () => false,
-    delete: () => false,
+    // Mappings are normally superseded (createOrReplaceMapping), never deleted - but a
+    // superadmin or the owning organisation's admin can remove a bad/orphaned row, the
+    // same exception WordPressConnections grants (see modules/wordpress/collection.ts).
+    delete: async ({ req }) => {
+      if (isSuperadmin(req)) return true;
+      const ctx = await organisationRoleForRequest(req);
+      return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
+    },
   },
   fields: [
     { name: "organisation", type: "relationship", relationTo: "organisations", required: true, index: true },
@@ -131,5 +138,20 @@ registerConnectionLifecycleHooks("google-search-console", {
       overrideAccess: true,
     });
     return result.docs.length > 0;
+  },
+  invalidateSnapshotsForConnection: async (connectionId) => {
+    const { getPayloadClient } = await import("../../lib/payload");
+    const { invalidateSnapshotsForMapping } = await import("../../lib/report-cache");
+    const payload = await getPayloadClient();
+    const referencing = await payload.find({
+      collection: "google-search-console-mappings",
+      where: { googleConnection: { equals: connectionId } },
+      limit: 100,
+      depth: 0,
+      overrideAccess: true,
+    });
+    await Promise.all(
+      referencing.docs.map((doc) => invalidateSnapshotsForMapping("google-search-console-report-snapshots", String(doc.id)))
+    );
   },
 });

@@ -193,6 +193,13 @@ export async function handleCallback(
     },
     overrideAccess: true,
   });
+
+  // Property access or the underlying data can have changed since this connection last
+  // had working tokens - a stale-but-not-yet-expired report snapshot would otherwise
+  // look authoritative. See "Reconnect invalidates stale caches" in
+  // GOOGLE_PERFORMANCE_PLAN.md.
+  await getConnectionLifecycleHooks(capability)?.invalidateSnapshotsForConnection(flow.connectionId);
+
   return { status: "connected", connectionId: flow.connectionId, capability };
 }
 
