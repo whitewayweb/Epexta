@@ -31,7 +31,10 @@ export function MappingForm({ wordpressConnections, googleConnections }: Mapping
     <form action={formAction} className="flex max-w-md flex-col gap-4">
       <div className="grid gap-1.5">
         <Label htmlFor="wordpressConnectionId">WordPress site</Label>
-        <Select name="wordpressConnectionId">
+        <Select
+          name="wordpressConnectionId"
+          items={Object.fromEntries(wordpressConnections.map((c) => [c.connectionId, c.label || c.siteUrl]))}
+        >
           <SelectTrigger id="wordpressConnectionId">
             <SelectValue placeholder="Select a site" />
           </SelectTrigger>
@@ -47,7 +50,10 @@ export function MappingForm({ wordpressConnections, googleConnections }: Mapping
 
       <div className="grid gap-1.5">
         <Label htmlFor="googleConnectionId">Google account</Label>
-        <Select name="googleConnectionId">
+        <Select
+          name="googleConnectionId"
+          items={Object.fromEntries(activeGoogleConnections.map((c) => [c.id, c.googleAccountLabel]))}
+        >
           <SelectTrigger id="googleConnectionId">
             <SelectValue placeholder="Select a Google account" />
           </SelectTrigger>

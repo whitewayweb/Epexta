@@ -24,10 +24,12 @@ export default async function GoogleSearchConsolePerformancePage() {
       ])
     : [[], []];
 
-  const siteLabel = (wordpressConnectionId: string) => {
-    const site = wordpressConnections.find((c) => c.connectionId === wordpressConnectionId);
-    return site ? site.label || site.siteUrl : "Unknown site";
-  };
+  // A function prop can't cross the server-to-client boundary (only plain data can) -
+  // resolve labels into a plain map here instead of passing the lookup itself down.
+  const siteLabels: Record<string, string> = {};
+  for (const site of wordpressConnections) {
+    siteLabels[site.connectionId] = site.label || site.siteUrl;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -37,7 +39,7 @@ export default async function GoogleSearchConsolePerformancePage() {
           No site is mapped to a Search Console property yet. Set one up from the Google Search Console overview page first.
         </p>
       ) : (
-        <PerformanceLookupForm mappings={mappings} siteLabel={siteLabel} />
+        <PerformanceLookupForm mappings={mappings} siteLabels={siteLabels} />
       )}
     </div>
   );

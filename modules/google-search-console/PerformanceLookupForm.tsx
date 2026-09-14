@@ -13,10 +13,10 @@ const initialState: PerformanceState = { error: null, data: null };
 
 interface PerformanceLookupFormProps {
   mappings: SearchConsoleMapping[];
-  siteLabel: (wordpressConnectionId: string) => string;
+  siteLabels: Record<string, string>;
 }
 
-export function PerformanceLookupForm({ mappings, siteLabel }: PerformanceLookupFormProps) {
+export function PerformanceLookupForm({ mappings, siteLabels }: PerformanceLookupFormProps) {
   const [state, formAction, pending] = useActionState(getPerformanceAction, initialState);
 
   return (
@@ -24,14 +24,17 @@ export function PerformanceLookupForm({ mappings, siteLabel }: PerformanceLookup
       <form action={formAction} className="flex max-w-md flex-col gap-4">
         <div className="grid gap-1.5">
           <Label htmlFor="wordpressConnectionId">Site</Label>
-          <Select name="wordpressConnectionId">
+          <Select
+            name="wordpressConnectionId"
+            items={Object.fromEntries(mappings.map((m) => [m.wordpressConnectionId, siteLabels[m.wordpressConnectionId] ?? "Unknown site"]))}
+          >
             <SelectTrigger id="wordpressConnectionId">
               <SelectValue placeholder="Select a mapped site" />
             </SelectTrigger>
             <SelectContent>
               {mappings.map((m) => (
                 <SelectItem key={m.mappingId} value={m.wordpressConnectionId}>
-                  {siteLabel(m.wordpressConnectionId)}
+                  {siteLabels[m.wordpressConnectionId] ?? "Unknown site"}
                 </SelectItem>
               ))}
             </SelectContent>
