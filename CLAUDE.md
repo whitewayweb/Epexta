@@ -138,6 +138,20 @@ primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@lates
   `[transport]` dynamic segment (that was the v1 shape; removed in the v2 migration,
   see `app/api/wordpress/mcp/route.ts`). Put the route file directly at the URL you
   want it to answer on.
+  - **Exception: modules sharing a `lib/modules.ts` `group`.** Some MCP clients
+    (e.g. ChatGPT-style connectors) let a user register only one URL per connector,
+    so several small, closely-related modules under one `group` (e.g. Google Site
+    Hub's `google-search-console` + `google-analytics`) may share one MCP route —
+    see `GOOGLE_PERFORMANCE_PLAN.md`'s "One Google Site Hub MCP endpoint, not one
+    per module." This is a transport-layer decision only: `group` still carries no
+    authorization meaning (`lib/modules.ts`), `verifyToken` still computes
+    `moduleEnabled` per slug independently, every tool still goes through
+    `registerGatedTool` gated on its own module's slug, and tool names must be
+    capability-specific (`list_google_analytics_mapped_sites`, not
+    `list_mapped_sites`) since two modules' tools now share one server's namespace.
+    Default to one route per module; only share a route when a real client
+    constraint like this forces it, and document the reasoning in that module's
+    own plan doc the way `GOOGLE_PERFORMANCE_PLAN.md` does.
 - Payload's own REST API lives at `/api/cms/*` (`app/api/cms/[...slug]/route.ts`).
 - Payload's admin panel is `/admin`.
 - Each module's onboarding UI is `/<name>/connect`.

@@ -29,7 +29,11 @@ export const MODULES = [
     description: "Search performance reporting - clicks, impressions, queries, and index status for your posts.",
     overviewPath: "/google-search-console",
     connectPath: "/google-search-console/connect",
-    mcpPath: "/api/google-search-console/mcp",
+    // Points at the combined Google Site Hub route - see "One Google Site Hub MCP
+    // endpoint, not one per module" in GOOGLE_PERFORMANCE_PLAN.md. The old
+    // /api/google-search-console/mcp route stays live as a compatibility endpoint
+    // for already-registered connectors; new onboarding only ever hands out this URL.
+    mcpPath: "/api/google/mcp",
     group: "google-site-hub",
   },
   {
@@ -38,7 +42,8 @@ export const MODULES = [
     description: "GA4 engagement reporting - users, sessions, and key events for your posts.",
     overviewPath: "/google-analytics",
     connectPath: "/google-analytics/connect",
-    mcpPath: "/api/google-analytics/mcp",
+    // Same combined route as google-search-console above - see that comment.
+    mcpPath: "/api/google/mcp",
     group: "google-site-hub",
   },
 ] as const satisfies readonly ModuleDefinition[];
