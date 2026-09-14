@@ -42,11 +42,31 @@ export interface CreatePostInput {
   status: "draft" | "publish" | "pending";
   excerpt?: string;
   categoryNames?: string[];
+  /**
+   * Optional overrides for the SEO details of categories created as part of this
+   * request. Keys are category names (matched case-insensitively). Existing
+   * categories are deliberately left unchanged.
+   */
+  categorySeo?: Record<string, CategorySeoInput>;
   tagNames?: string[];
   seoTitle?: string;
   seoDescription?: string;
   focusKeyphrase?: string;
   slug?: string;
+}
+
+export interface CategorySeoInput {
+  description?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  focusKeyphrase?: string;
+}
+
+interface ResolvedCategorySeo {
+  description: string;
+  seoTitle: string;
+  seoDescription: string;
+  focusKeyphrase: string;
 }
 
 export interface WordPressCredentials {
@@ -79,49 +99,123 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     return res.json() as Promise<T>;
   }
 
-  async function findOrCreateTerm(taxonomyPath: "categories" | "tags", name: string): Promise<number> {
+  function limitDescription(value: string): string {
+    return value.length <= 156 ? value : `${value.slice(0, 153).trimEnd()}...`;
+  }
+
+  function resolveCategorySeo(name: string, overrides?: CategorySeoInput): ResolvedCategorySeo {
+    const focusKeyphrase = overrides?.focusKeyphrase?.trim() || name;
+    const seoTitle = overrides?.seoTitle?.trim() || `${focusKeyphrase}: Articles, Guides & Insights`;
+    const seoDescription = limitDescription(
+      overrides?.seoDescription?.trim() ||
+        `Explore ${focusKeyphrase} articles, guides, and practical insights to help you make informed decisions.`
+    );
+    return {
+      focusKeyphrase,
+      seoTitle,
+      seoDescription,
+      description: overrides?.description?.trim() || seoDescription,
+    };
+  }
+
+  function categorySeoForName(categorySeo: Record<string, CategorySeoInput> | undefined, name: string) {
+    return Object.entries(categorySeo ?? {}).find(([categoryName]) => categoryName.trim().toLowerCase() === name.trim().toLowerCase())?.[1];
+  }
+
+  interface ResolvedTerm {
+    id: number;
+    seoWarning?: string;
+  }
+
+  async function findOrCreateTerm(
+    taxonomyPath: "categories" | "tags",
+    name: string,
+    categorySeo?: CategorySeoInput
+  ): Promise<ResolvedTerm> {
     const trimmed = name.trim();
     const existing: WpTerm[] = await wpFetch(
       `/wp/v2/${taxonomyPath}?search=${encodeURIComponent(trimmed)}&per_page=100`
     );
     const match = existing.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
-    if (match) return match.id;
+    if (match) return { id: match.id };
 
-    const created: WpTerm = await wpFetch(`/wp/v2/${taxonomyPath}`, {
+    const categorySeoDetails = taxonomyPath === "categories" ? resolveCategorySeo(trimmed, categorySeo) : undefined;
+
+    const created: WpTerm & { epexta_seo?: ResolvedCategorySeo } = await wpFetch(`/wp/v2/${taxonomyPath}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmed }),
+      body: JSON.stringify({
+        name: trimmed,
+        ...(categorySeoDetails
+          ? { description: categorySeoDetails.description, epexta_seo: categorySeoDetails }
+          : {}),
+      }),
     });
-    return created.id;
+    return {
+      id: created.id,
+      ...(categorySeoDetails && !created.epexta_seo
+        ? {
+            seoWarning:
+              `Category "${trimmed}" was created with a description, but its Yoast SEO details were not saved. ` +
+              "Install the Epexta category SEO REST bridge described in README.md, then use update_category_seo.",
+          }
+        : {}),
+    };
   }
 
   interface ResolvedTerms {
     ids: number[];
     warnings: string[];
+    seoWarnings: string[];
   }
 
-  async function resolveTermIdsSafe(taxonomyPath: "categories" | "tags", names: string[]): Promise<ResolvedTerms> {
+  async function resolveTermIdsSafe(
+    taxonomyPath: "categories" | "tags",
+    names: string[],
+    categorySeo?: Record<string, CategorySeoInput>
+  ): Promise<ResolvedTerms> {
     const singular = taxonomyPath === "categories" ? "category" : "tag";
-    const results = await Promise.allSettled(names.map((n) => findOrCreateTerm(taxonomyPath, n)));
+    const results = await Promise.allSettled(
+      names.map((name) => findOrCreateTerm(taxonomyPath, name, categorySeoForName(categorySeo, name)))
+    );
     const ids: number[] = [];
     const warnings: string[] = [];
+    const seoWarnings: string[] = [];
     results.forEach((result, i) => {
       if (result.status === "fulfilled") {
-        ids.push(result.value);
+        ids.push(result.value.id);
+        if (result.value.seoWarning) seoWarnings.push(result.value.seoWarning);
       } else {
         const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
         warnings.push(`Could not create/assign ${singular} "${names[i]}": ${reason}`);
       }
     });
-    return { ids, warnings };
+    return { ids, warnings, seoWarnings };
   }
 
-  function resolveCategoryIds(names: string[]): Promise<ResolvedTerms> {
-    return resolveTermIdsSafe("categories", names);
+  function resolveCategoryIds(names: string[], categorySeo?: Record<string, CategorySeoInput>): Promise<ResolvedTerms> {
+    return resolveTermIdsSafe("categories", names, categorySeo);
   }
 
   function resolveTagIds(names: string[]): Promise<ResolvedTerms> {
     return resolveTermIdsSafe("tags", names);
+  }
+
+  async function updateCategorySeo(categoryId: number, overrides: CategorySeoInput) {
+    const existing = await wpFetch<WpTerm>(`/wp/v2/categories/${categoryId}?context=edit`);
+    const seo = resolveCategorySeo(existing.name, overrides);
+    const updated = await wpFetch<WpTerm & { epexta_seo?: ResolvedCategorySeo }>(`/wp/v2/categories/${categoryId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description: seo.description, epexta_seo: seo }),
+    });
+    const warnings = updated.epexta_seo
+      ? []
+      : [
+          `Category "${existing.name}" was updated with a description, but its Yoast SEO details were not saved. ` +
+            "Install the Epexta category SEO REST bridge described in README.md and retry.",
+        ];
+    return { category: updated, warnings };
   }
 
   function listPosts(params: { status?: string; perPage?: number; search?: string }) {
@@ -204,7 +298,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
   async function createPost(input: CreatePostInput) {
     const [categoryResult, tagResult] = await Promise.all([
-      input.categoryNames?.length ? resolveCategoryIds(input.categoryNames) : Promise.resolve(undefined),
+      input.categoryNames?.length ? resolveCategoryIds(input.categoryNames, input.categorySeo) : Promise.resolve(undefined),
       input.tagNames?.length ? resolveTagIds(input.tagNames) : Promise.resolve(undefined),
     ]);
     assertNoTermWarnings(categoryResult, tagResult);
@@ -228,6 +322,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     });
 
     const warnings: string[] = [];
+    warnings.push(...(categoryResult?.seoWarnings ?? []));
     if (Object.keys(yoastMeta).length > 0) {
       warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
     }
@@ -237,7 +332,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
   async function updatePost(postId: number, fields: Partial<CreatePostInput>) {
     const [categoryResult, tagResult] = await Promise.all([
-      fields.categoryNames?.length ? resolveCategoryIds(fields.categoryNames) : Promise.resolve(undefined),
+      fields.categoryNames?.length ? resolveCategoryIds(fields.categoryNames, fields.categorySeo) : Promise.resolve(undefined),
       fields.tagNames?.length ? resolveTagIds(fields.tagNames) : Promise.resolve(undefined),
     ]);
     assertNoTermWarnings(categoryResult, tagResult);
@@ -260,6 +355,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     });
 
     const warnings: string[] = [];
+    warnings.push(...(categoryResult?.seoWarnings ?? []));
     if (Object.keys(yoastMeta).length > 0) {
       warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
     }
@@ -314,6 +410,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
   return {
     resolveCategoryIds,
     resolveTagIds,
+    updateCategorySeo,
     listPosts,
     listCategories,
     listTags,

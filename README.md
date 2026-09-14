@@ -6,8 +6,9 @@ An MCP server (deployed on Vercel) that lets ChatGPT write, categorize, tag, ill
 
 - `list_posts` — read existing posts
 - `list_categories` / `list_tags` — read existing terms
-- `create_post` — create a post (draft by default), with categories/tags resolved or created by name, plus optional SEO title/description. Returns a `warnings` array for any category/tag or SEO meta field that didn't apply, plus a `seoCheck` on-page SEO analysis.
+- `create_post` — create a post (draft by default), with categories/tags resolved or created by name, plus optional SEO title/description. Newly created categories receive an archive description and Yoast SEO defaults; `categorySeo` can supply topic-specific copy. Returns a `warnings` array for any category/tag or SEO meta field that didn't apply, plus a `seoCheck` on-page SEO analysis.
 - `update_post` — edit an existing post's content, terms, SEO meta, slug, or status. Same `warnings`/`seoCheck` response shape as `create_post`.
+- `update_category_seo` — improve an existing category archive's description, focus keyphrase, SEO title, and meta description.
 - `publish_post` — flip a post to published
 - `check_seo` — run an on-page SEO analysis (Yoast-equivalent checks: keyphrase in title/introduction/subheadings/meta description/slug, keyphrase density, content length, links, image alt text) against draft content, independent of publishing
 - `set_featured_image` — upload an image (by URL or base64) and set it as a post's featured image
@@ -56,6 +57,55 @@ Register the resulting `https://<your-project>.vercel.app/api/wordpress/mcp` URL
   ```
 
   No plugin activation step needed — anything dropped in `mu-plugins/` runs automatically.
+- Yoast stores category SEO separately from normal WordPress term metadata. To let `create_post` save the SEO defaults for a new category, and to enable `update_category_seo` for existing categories, add this companion must-use plugin as `wp-content/mu-plugins/epexta-category-seo-rest.php` (it deliberately exposes only the three SEO fields used by this MCP):
+
+  ```php
+  <?php
+  /**
+   * Plugin Name: Epexta category SEO REST bridge
+   */
+  add_action( 'rest_api_init', function () {
+      register_rest_field( 'category', 'epexta_seo', [
+          'get_callback' => function ( $term ) {
+              if ( ! class_exists( 'WPSEO_Taxonomy_Meta' ) ) {
+                  return null;
+              }
+              return [
+                  'seoTitle'       => WPSEO_Taxonomy_Meta::get_term_meta( $term['id'], 'category', 'title' ),
+                  'seoDescription' => WPSEO_Taxonomy_Meta::get_term_meta( $term['id'], 'category', 'desc' ),
+                  'focusKeyphrase' => WPSEO_Taxonomy_Meta::get_term_meta( $term['id'], 'category', 'focuskw' ),
+              ];
+          },
+          'update_callback' => function ( $value, $term ) {
+              if ( ! class_exists( 'WPSEO_Taxonomy_Meta' ) || ! is_array( $value ) ) {
+                  return;
+              }
+              $fields = [
+                  'wpseo_title'   => $value['seoTitle'] ?? null,
+                  'wpseo_desc'    => $value['seoDescription'] ?? null,
+                  'wpseo_focuskw' => $value['focusKeyphrase'] ?? null,
+              ];
+              WPSEO_Taxonomy_Meta::set_values(
+                  $term->term_id,
+                  'category',
+                  array_filter( $fields, static fn( $field ) => is_string( $field ) )
+              );
+          },
+          'schema' => [
+              'description' => 'Yoast SEO fields managed by Epexta.',
+              'type' => 'object',
+              'context' => [ 'view', 'edit' ],
+              'properties' => [
+                  'seoTitle' => [ 'type' => 'string' ],
+                  'seoDescription' => [ 'type' => 'string' ],
+                  'focusKeyphrase' => [ 'type' => 'string' ],
+              ],
+          ],
+      ] );
+  } );
+  ```
+
+  The WordPress category description is always saved through WordPress's standard REST API. If this bridge or Yoast is absent, the MCP returns a warning instead of reporting category SEO as complete.
 - Categories/tags are resolved (or created) independently per name — one failing term (e.g. a permissions error) no longer aborts the whole post or silently drops every other term. Any term that couldn't be resolved is listed in the response's `warnings` array, and the post is still created/updated with whichever terms did resolve.
 - `create_post`, `update_post`, and `check_seo` return a heuristic on-page SEO analysis (`seoCheck`) modeled on Yoast's core checks, since Yoast's own analysis only runs inside the WordPress block editor UI and never executes for posts created via the REST API. Use `check_seo` standalone to validate a draft before calling `create_post`.
 - All posts default to `draft` status — nothing goes live without an explicit publish.

@@ -8,6 +8,7 @@ import { getUserByApiKey } from "@/lib/session";
 import {
   createWordPressClient,
   WordPressApiError,
+  type CategorySeoInput,
   type WordPressClient,
   type WordPressCredentials,
 } from "@/modules/wordpress/client";
@@ -245,6 +246,13 @@ const siteIdSchema = z
       "ask the user to choose."
   );
 
+const categorySeoSchema = z.object({
+  description: z.string().optional().describe("Category archive description. Defaults to the SEO description."),
+  seoTitle: z.string().optional().describe("Yoast SEO title. Defaults to a title beginning with the category name."),
+  seoDescription: z.string().optional().describe("Yoast meta description. Defaults to a concise description containing the category name."),
+  focusKeyphrase: z.string().optional().describe("Yoast focus keyphrase. Defaults to the category name."),
+});
+
 const rawHandler = createMcpHandler(
   (server) => {
   // Wraps server.registerTool so entitlement enforcement is structural - a tool
@@ -358,7 +366,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Create Blog Post",
       description:
-        "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
+        "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. A new category receives a description, focus keyphrase, SEO title, and meta description by default; use categorySeo for topic-specific copy. Existing categories are never changed implicitly—use update_category_seo for those. Category Yoast fields require the Epexta category SEO REST bridge documented in README.md; a warning means the category description was saved but Yoast data was not. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
         "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. Use an <img> with accurate descriptive alt text when an image is appropriate. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via set_featured_image. " +
         articleWritingGuidance,
       inputSchema: z.object({
@@ -378,6 +386,10 @@ const rawHandler = createMcpHandler(
                 .describe(
                   "At least one category name for this post. Required: WordPress silently files a post with no categories into its own default category, so pick a genuinely fitting one (call list_categories first to see what exists) rather than omitting this. Created automatically if new."
                 ),
+              categorySeo: z
+                .record(z.string(), categorySeoSchema)
+                .optional()
+                .describe("Optional SEO overrides for newly created categories, keyed by category name. Existing categories are not modified."),
               tagNames: z
                 .array(z.string())
                 .optional()
@@ -435,6 +447,7 @@ const rawHandler = createMcpHandler(
               status: z.enum(["draft", "publish", "pending"]).optional(),
               excerpt: z.string().optional(),
               categoryNames: z.array(z.string()).optional(),
+              categorySeo: z.record(z.string(), categorySeoSchema).optional(),
               tagNames: z.array(z.string()).optional(),
               seoTitle: z.string().optional(),
               seoDescription: z.string().optional(),
@@ -457,6 +470,30 @@ const rawHandler = createMcpHandler(
         // compare against.
         const seoFollowUp = fields.focusKeyphrase !== undefined ? seoFollowUpNote(seoCheck, postId) : undefined;
         return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
+      } catch (e) {
+        return errorResult(e);
+      }
+    }
+  );
+
+  registerGatedTool(
+    "update_category_seo",
+    {
+      title: "Update Category SEO",
+      description:
+        "Update an existing category's archive description and Yoast focus keyphrase, SEO title, and meta description. Use list_categories to identify the category. Omitted fields receive sensible defaults based on the existing category name. Requires the Epexta category SEO REST bridge documented in README.md; the returned warnings say if WordPress saved only the description.",
+      inputSchema: z.object({
+        siteId: siteIdSchema,
+        categoryId: z.number().int().describe("Existing category ID from list_categories."),
+        ...categorySeoSchema.shape,
+      }),
+    },
+    async ({ siteId, categoryId, ...seo }, ctx) => {
+      try {
+        const resolved = clientFromContext(ctx, siteId);
+        if (!resolved.ok) return resolved.elicit;
+        const { category, warnings } = await resolved.client.updateCategorySeo(categoryId, seo as CategorySeoInput);
+        return textResult({ category, warnings });
       } catch (e) {
         return errorResult(e);
       }
