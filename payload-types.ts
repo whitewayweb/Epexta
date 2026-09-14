@@ -76,6 +76,14 @@ export interface Config {
     'google-oauth-states': GoogleOauthState;
     'google-search-console-mappings': GoogleSearchConsoleMapping;
     'google-analytics-mappings': GoogleAnalyticsMapping;
+    'google-search-console-report-snapshots': GoogleSearchConsoleReportSnapshot;
+    'google-search-console-report-refresh-leases': GoogleSearchConsoleReportRefreshLease;
+    'google-search-console-quota-usage': GoogleSearchConsoleQuotaUsage;
+    'google-analytics-report-snapshots': GoogleAnalyticsReportSnapshot;
+    'google-analytics-report-refresh-leases': GoogleAnalyticsReportRefreshLease;
+    'google-analytics-quota-usage': GoogleAnalyticsQuotaUsage;
+    'ga4-property-quota': Ga4PropertyQuota;
+    'ga4-project-property-quota': Ga4ProjectPropertyQuota;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -92,6 +100,14 @@ export interface Config {
     'google-oauth-states': GoogleOauthStatesSelect<false> | GoogleOauthStatesSelect<true>;
     'google-search-console-mappings': GoogleSearchConsoleMappingsSelect<false> | GoogleSearchConsoleMappingsSelect<true>;
     'google-analytics-mappings': GoogleAnalyticsMappingsSelect<false> | GoogleAnalyticsMappingsSelect<true>;
+    'google-search-console-report-snapshots': GoogleSearchConsoleReportSnapshotsSelect<false> | GoogleSearchConsoleReportSnapshotsSelect<true>;
+    'google-search-console-report-refresh-leases': GoogleSearchConsoleReportRefreshLeasesSelect<false> | GoogleSearchConsoleReportRefreshLeasesSelect<true>;
+    'google-search-console-quota-usage': GoogleSearchConsoleQuotaUsageSelect<false> | GoogleSearchConsoleQuotaUsageSelect<true>;
+    'google-analytics-report-snapshots': GoogleAnalyticsReportSnapshotsSelect<false> | GoogleAnalyticsReportSnapshotsSelect<true>;
+    'google-analytics-report-refresh-leases': GoogleAnalyticsReportRefreshLeasesSelect<false> | GoogleAnalyticsReportRefreshLeasesSelect<true>;
+    'google-analytics-quota-usage': GoogleAnalyticsQuotaUsageSelect<false> | GoogleAnalyticsQuotaUsageSelect<true>;
+    'ga4-property-quota': Ga4PropertyQuotaSelect<false> | Ga4PropertyQuotaSelect<true>;
+    'ga4-project-property-quota': Ga4ProjectPropertyQuotaSelect<false> | Ga4ProjectPropertyQuotaSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -362,6 +378,181 @@ export interface GoogleAnalyticsMapping {
   createdAt: string;
 }
 /**
+ * Cached Search Console report results. Server-only - see modules/google-search-console/reporting.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-report-snapshots".
+ */
+export interface GoogleSearchConsoleReportSnapshot {
+  id: number;
+  mapping: number | GoogleSearchConsoleMapping;
+  reportType: 'post_performance' | 'compare_periods' | 'search_queries' | 'index_status';
+  canonicalPostUrl: string;
+  normalizedQueryParams?: string | null;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  /**
+   * Always America/Los_Angeles for Search Console.
+   */
+  timezone: string;
+  fetchedAt: string;
+  expiresAt: string;
+  freshnessState: 'fresh' | 'stale' | 'delayed' | 'unavailable';
+  /**
+   * Normalised metrics/evidence only - never tokens or raw Google bodies.
+   */
+  payload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Refresh-dedup leases for Search Console reports. Server-only - see modules/google-search-console/reporting.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-report-refresh-leases".
+ */
+export interface GoogleSearchConsoleReportRefreshLease {
+  id: number;
+  mapping: number | GoogleSearchConsoleMapping;
+  reportType: 'post_performance' | 'compare_periods' | 'search_queries' | 'index_status';
+  canonicalPostUrl: string;
+  normalizedQueryParams?: string | null;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  leaseHolder: string;
+  leaseExpiresAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Per-organisation rate-limit counters for Search Console requests. Server-only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-quota-usage".
+ */
+export interface GoogleSearchConsoleQuotaUsage {
+  id: number;
+  organisation: number | Organisation;
+  wordpressConnection: number | WordpressConnection;
+  windowStart: string;
+  requestCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Cached GA4 report results. Server-only - see modules/google-analytics/reporting.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-report-snapshots".
+ */
+export interface GoogleAnalyticsReportSnapshot {
+  id: number;
+  mapping: number | GoogleAnalyticsMapping;
+  reportType: 'post_performance' | 'compare_periods';
+  canonicalPostUrl: string;
+  normalizedQueryParams?: string | null;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  /**
+   * The mapped GA4 property's own configured reporting timezone.
+   */
+  timezone: string;
+  fetchedAt: string;
+  expiresAt: string;
+  freshnessState: 'fresh' | 'stale' | 'delayed' | 'unavailable';
+  /**
+   * Normalised metrics/evidence only - never tokens or raw Google bodies.
+   */
+  payload:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Refresh-dedup leases for GA4 reports. Server-only - see modules/google-analytics/reporting.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-report-refresh-leases".
+ */
+export interface GoogleAnalyticsReportRefreshLease {
+  id: number;
+  mapping: number | GoogleAnalyticsMapping;
+  reportType: 'post_performance' | 'compare_periods';
+  canonicalPostUrl: string;
+  normalizedQueryParams?: string | null;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  leaseHolder: string;
+  leaseExpiresAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Per-organisation rate-limit counters for GA4 requests. Server-only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-quota-usage".
+ */
+export interface GoogleAnalyticsQuotaUsage {
+  id: number;
+  organisation: number | Organisation;
+  wordpressConnection: number | WordpressConnection;
+  windowStart: string;
+  requestCount: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * GA4 Data API property-wide quota, as last observed from returnPropertyQuota. Server-only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ga4-property-quota".
+ */
+export interface Ga4PropertyQuota {
+  id: number;
+  ga4PropertyId: string;
+  tokensRemaining?: number | null;
+  tokensPerHour?: number | null;
+  tokensPerDay?: number | null;
+  concurrentRequests?: number | null;
+  lastObservedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * GA4 Data API per-(property, Google Cloud project) quota. Server-only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ga4-project-property-quota".
+ */
+export interface Ga4ProjectPropertyQuota {
+  id: number;
+  ga4PropertyId: string;
+  googleCloudProjectId: string;
+  tokensRemaining?: number | null;
+  tokensPerHour?: number | null;
+  tokensPerDay?: number | null;
+  concurrentRequests?: number | null;
+  lastObservedAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -420,6 +611,38 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'google-analytics-mappings';
         value: number | GoogleAnalyticsMapping;
+      } | null)
+    | ({
+        relationTo: 'google-search-console-report-snapshots';
+        value: number | GoogleSearchConsoleReportSnapshot;
+      } | null)
+    | ({
+        relationTo: 'google-search-console-report-refresh-leases';
+        value: number | GoogleSearchConsoleReportRefreshLease;
+      } | null)
+    | ({
+        relationTo: 'google-search-console-quota-usage';
+        value: number | GoogleSearchConsoleQuotaUsage;
+      } | null)
+    | ({
+        relationTo: 'google-analytics-report-snapshots';
+        value: number | GoogleAnalyticsReportSnapshot;
+      } | null)
+    | ({
+        relationTo: 'google-analytics-report-refresh-leases';
+        value: number | GoogleAnalyticsReportRefreshLease;
+      } | null)
+    | ({
+        relationTo: 'google-analytics-quota-usage';
+        value: number | GoogleAnalyticsQuotaUsage;
+      } | null)
+    | ({
+        relationTo: 'ga4-property-quota';
+        value: number | Ga4PropertyQuota;
+      } | null)
+    | ({
+        relationTo: 'ga4-project-property-quota';
+        value: number | Ga4ProjectPropertyQuota;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -604,6 +827,129 @@ export interface GoogleAnalyticsMappingsSelect<T extends boolean = true> {
   status?: T;
   replacedAt?: T;
   replacedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-report-snapshots_select".
+ */
+export interface GoogleSearchConsoleReportSnapshotsSelect<T extends boolean = true> {
+  mapping?: T;
+  reportType?: T;
+  canonicalPostUrl?: T;
+  normalizedQueryParams?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  timezone?: T;
+  fetchedAt?: T;
+  expiresAt?: T;
+  freshnessState?: T;
+  payload?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-report-refresh-leases_select".
+ */
+export interface GoogleSearchConsoleReportRefreshLeasesSelect<T extends boolean = true> {
+  mapping?: T;
+  reportType?: T;
+  canonicalPostUrl?: T;
+  normalizedQueryParams?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  leaseHolder?: T;
+  leaseExpiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-search-console-quota-usage_select".
+ */
+export interface GoogleSearchConsoleQuotaUsageSelect<T extends boolean = true> {
+  organisation?: T;
+  wordpressConnection?: T;
+  windowStart?: T;
+  requestCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-report-snapshots_select".
+ */
+export interface GoogleAnalyticsReportSnapshotsSelect<T extends boolean = true> {
+  mapping?: T;
+  reportType?: T;
+  canonicalPostUrl?: T;
+  normalizedQueryParams?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  timezone?: T;
+  fetchedAt?: T;
+  expiresAt?: T;
+  freshnessState?: T;
+  payload?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-report-refresh-leases_select".
+ */
+export interface GoogleAnalyticsReportRefreshLeasesSelect<T extends boolean = true> {
+  mapping?: T;
+  reportType?: T;
+  canonicalPostUrl?: T;
+  normalizedQueryParams?: T;
+  dateRangeStart?: T;
+  dateRangeEnd?: T;
+  leaseHolder?: T;
+  leaseExpiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-analytics-quota-usage_select".
+ */
+export interface GoogleAnalyticsQuotaUsageSelect<T extends boolean = true> {
+  organisation?: T;
+  wordpressConnection?: T;
+  windowStart?: T;
+  requestCount?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ga4-property-quota_select".
+ */
+export interface Ga4PropertyQuotaSelect<T extends boolean = true> {
+  ga4PropertyId?: T;
+  tokensRemaining?: T;
+  tokensPerHour?: T;
+  tokensPerDay?: T;
+  concurrentRequests?: T;
+  lastObservedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ga4-project-property-quota_select".
+ */
+export interface Ga4ProjectPropertyQuotaSelect<T extends boolean = true> {
+  ga4PropertyId?: T;
+  googleCloudProjectId?: T;
+  tokensRemaining?: T;
+  tokensPerHour?: T;
+  tokensPerDay?: T;
+  concurrentRequests?: T;
+  lastObservedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

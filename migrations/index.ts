@@ -5,6 +5,7 @@ import * as migration_20260914_093002_google_connections from './20260914_093002
 import * as migration_20260914_093210_google_site_hub_entitlements from './20260914_093210_google_site_hub_entitlements';
 import * as migration_20260914_094627_google_site_hub_mappings from './20260914_094627_google_site_hub_mappings';
 import * as migration_20260914_095814_cascade_delete_fks from './20260914_095814_cascade_delete_fks';
+import * as migration_20260914_105016_google_site_hub_reporting from './20260914_105016_google_site_hub_reporting';
 
 export const migrations = [
   {
@@ -40,6 +41,11 @@ export const migrations = [
   {
     up: migration_20260914_095814_cascade_delete_fks.up,
     down: migration_20260914_095814_cascade_delete_fks.down,
-    name: '20260914_095814_cascade_delete_fks'
+    name: '20260914_095814_cascade_delete_fks',
+  },
+  {
+    up: migration_20260914_105016_google_site_hub_reporting.up,
+    down: migration_20260914_105016_google_site_hub_reporting.down,
+    name: '20260914_105016_google_site_hub_reporting'
   },
 ];

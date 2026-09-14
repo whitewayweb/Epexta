@@ -22,6 +22,20 @@ interface WpPostTitle {
   };
 }
 
+interface WpPostForPerformance {
+  id: number;
+  link: string;
+  status: string;
+  modified: string;
+}
+
+export interface PostForPerformance {
+  postId: number;
+  canonicalLink: string;
+  status: string;
+  modifiedAt: string;
+}
+
 export interface CreatePostInput {
   title: string;
   contentHtml: string;
@@ -130,6 +144,18 @@ export function createWordPressClient(credentials: WordPressCredentials) {
   async function getPostTitle(postId: number): Promise<string> {
     const post = await wpFetch<WpPostTitle>(`/wp/v2/posts/${postId}?context=edit&_fields=id,title`);
     return post.title.raw ?? post.title.rendered;
+  }
+
+  // Shared read-only resolver used by both Google Site Hub modules (Search Console, GA4)
+  // to turn a WordPress postId into the canonical URL those reporting APIs key off of -
+  // see "Post-identity resolution" in GOOGLE_PERFORMANCE_PLAN.md. `link` is WordPress's
+  // own canonical URL for the post (already what it serves publicly), not something
+  // reconstructed from slug/site URL. Grants neither module any write capability.
+  async function getPostForPerformance(postId: number): Promise<PostForPerformance> {
+    const post = await wpFetch<WpPostForPerformance>(
+      `/wp/v2/posts/${postId}?context=edit&_fields=id,link,status,modified`
+    );
+    return { postId: post.id, canonicalLink: post.link, status: post.status, modifiedAt: post.modified };
   }
 
   const YOAST_META_KEYS: Record<"seoTitle" | "seoDescription" | "focusKeyphrase", string> = {
@@ -292,6 +318,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     listCategories,
     listTags,
     getPostTitle,
+    getPostForPerformance,
     createPost,
     updatePost,
     publishPost,

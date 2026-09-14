@@ -9,8 +9,20 @@ import { ModuleEntitlements } from "./collections/ModuleEntitlements";
 import { Organisations } from "./collections/Organisations";
 import { Users } from "./collections/Users";
 import { GoogleAnalyticsMappings } from "./modules/google-analytics/collection";
+import {
+  Ga4ProjectPropertyQuota,
+  Ga4PropertyQuota,
+  GoogleAnalyticsQuotaUsage,
+  GoogleAnalyticsReportRefreshLeases,
+  GoogleAnalyticsReportSnapshots,
+} from "./modules/google-analytics/reporting-collections";
 import { GoogleConnections, GoogleOAuthStates } from "./modules/google-connections/collections";
 import { GoogleSearchConsoleMappings } from "./modules/google-search-console/collection";
+import {
+  GoogleSearchConsoleQuotaUsage,
+  GoogleSearchConsoleReportRefreshLeases,
+  GoogleSearchConsoleReportSnapshots,
+} from "./modules/google-search-console/reporting-collections";
 import { WordPressConnections } from "./modules/wordpress/collection";
 
 const filename = fileURLToPath(import.meta.url);
@@ -50,6 +62,14 @@ export default buildConfig({
     GoogleOAuthStates,
     GoogleSearchConsoleMappings,
     GoogleAnalyticsMappings,
+    GoogleSearchConsoleReportSnapshots,
+    GoogleSearchConsoleReportRefreshLeases,
+    GoogleSearchConsoleQuotaUsage,
+    GoogleAnalyticsReportSnapshots,
+    GoogleAnalyticsReportRefreshLeases,
+    GoogleAnalyticsQuotaUsage,
+    Ga4PropertyQuota,
+    Ga4ProjectPropertyQuota,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "",
