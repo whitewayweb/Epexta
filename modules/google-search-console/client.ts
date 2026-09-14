@@ -49,6 +49,33 @@ export async function querySearchAnalytics(
   });
 }
 
+export interface QuerySiteSearchAnalyticsInput {
+  /** e.g. "sc-domain:example.com" or a URL-prefix property. */
+  propertyUrl: string;
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Queries aggregate Search Analytics metrics for the entire mapped property - the
+ * site-wide counterpart to querySearchAnalytics. Unlike GA4, a Search Console property
+ * is already scoped to one domain/URL-prefix (see "GA4 cross-site filtering" for the
+ * contrast), so an unfiltered query here can't leak another mapped site's data.
+ */
+export async function querySiteSearchAnalytics(
+  connectionId: string,
+  input: QuerySiteSearchAnalyticsInput
+): Promise<ApiRequestResult> {
+  return executeGoogleApiRequest(connectionId, "google-search-console", {
+    method: "POST",
+    url: `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(input.propertyUrl)}/searchAnalytics/query`,
+    body: {
+      startDate: input.startDate,
+      endDate: input.endDate,
+    },
+  });
+}
+
 export function summarizeSearchAnalyticsRows(response: SearchAnalyticsResponse): {
   clicks: number;
   impressions: number;

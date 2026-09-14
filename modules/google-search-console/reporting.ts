@@ -2,7 +2,7 @@ import { checkAndIncrementQuota, getOrRefreshReport, type FetchFreshResult } fro
 import { getWordPressConnection } from "../wordpress/organisation";
 import { createWordPressClient } from "../wordpress/client";
 import { getActiveMappingForWordPressConnection } from "./mappings";
-import { querySearchAnalytics, summarizeSearchAnalyticsRows } from "./client";
+import { querySearchAnalytics, querySiteSearchAnalytics, summarizeSearchAnalyticsRows } from "./client";
 
 const SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const LEASE_TTL_MS = 30 * 1000;
@@ -198,6 +198,132 @@ export async function comparePostPerformance(
   if (current.status !== "ok") return current;
 
   const previous = await getPostPerformance(organisationId, wordpressConnectionId, wordpressPostId, priorPeriod(range));
+  if (previous.status !== "ok") return previous;
+
+  return { status: "ok", data: { current: current.data, previous: previous.data } };
+}
+
+export interface SitePerformanceData {
+  propertyUrl: string;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  timezone: string;
+  freshnessState: "fresh" | "stale" | "delayed" | "unavailable";
+  refreshPending: boolean;
+  metrics: PostPerformanceMetrics;
+}
+
+export type SitePerformanceResult =
+  | { status: "ok"; data: SitePerformanceData }
+  | { status: "not_mapped" }
+  | { status: "consent_expired" }
+  | { status: "temporary_failure" }
+  | { status: "unavailable" };
+
+async function fetchAndSummarizeSite(
+  organisationId: string,
+  wordpressConnectionId: string,
+  googleConnectionId: string,
+  propertyUrl: string,
+  range: DateRange
+): Promise<FetchFreshResult<PostPerformanceMetrics>> {
+  const quota = await checkAndIncrementQuota({
+    quotaCollection: "google-search-console-quota-usage",
+    organisationId,
+    wordpressConnectionId,
+    windowMs: QUOTA_WINDOW_MS,
+    limit: QUOTA_LIMIT_PER_WINDOW,
+  });
+  if (!quota.allowed) return { status: "temporary_failure" };
+
+  const result = await querySiteSearchAnalytics(googleConnectionId, {
+    propertyUrl,
+    startDate: range.startDate,
+    endDate: range.endDate,
+  });
+
+  if (result.status === "error") {
+    if (result.reason === "revoked" || result.reason === "needs_reconnect") throw new ConsentExpiredError();
+    if (result.reason === "temporary_failure" || result.reason === "forbidden") return { status: "temporary_failure" };
+    return { status: "unavailable" };
+  }
+
+  const metrics = summarizeSearchAnalyticsRows(result.data as { rows?: unknown[] } as Parameters<typeof summarizeSearchAnalyticsRows>[0]);
+  return { status: "ok", data: metrics, freshnessState: "fresh" };
+}
+
+/**
+ * Resolves Search Console performance metrics for an entire mapped property (not one
+ * post). The cache key reuses the canonicalPostUrl column to hold the property URL
+ * (reportType: "site_performance" keeps it from colliding with any post-scoped row)
+ * rather than adding a new column for a value that already fits the existing shape -
+ * see the identical choice in modules/google-analytics/reporting.ts's getSitePerformance.
+ */
+export async function getSitePerformance(
+  organisationId: string,
+  wordpressConnectionId: string,
+  range: DateRange = defaultDateRange()
+): Promise<SitePerformanceResult> {
+  const mapping = await getActiveMappingForWordPressConnection(organisationId, wordpressConnectionId);
+  if (!mapping) return { status: "not_mapped" };
+
+  const wpConnection = await getWordPressConnection(organisationId, wordpressConnectionId);
+  if (!wpConnection) return { status: "not_mapped" };
+
+  try {
+    const result = await getOrRefreshReport<PostPerformanceMetrics>({
+      snapshotCollection: "google-search-console-report-snapshots",
+      leaseCollection: "google-search-console-report-refresh-leases",
+      key: {
+        mapping: mapping.mappingId,
+        reportType: "site_performance",
+        canonicalPostUrl: mapping.searchConsolePropertyUrl,
+        normalizedQueryParams: null,
+        dateRangeStart: range.startDate,
+        dateRangeEnd: range.endDate,
+      },
+      ttlMs: SNAPSHOT_TTL_MS,
+      leaseTtlMs: LEASE_TTL_MS,
+      timezone: SEARCH_CONSOLE_TIMEZONE,
+      fetchFresh: () =>
+        fetchAndSummarizeSite(organisationId, wordpressConnectionId, mapping.googleConnectionId, mapping.searchConsolePropertyUrl, range),
+    });
+
+    if (result.status !== "ok") return result;
+    return {
+      status: "ok",
+      data: {
+        propertyUrl: mapping.searchConsolePropertyUrl,
+        dateRangeStart: range.startDate,
+        dateRangeEnd: range.endDate,
+        timezone: SEARCH_CONSOLE_TIMEZONE,
+        freshnessState: result.snapshot.freshnessState,
+        refreshPending: result.snapshot.refreshPending,
+        metrics: result.snapshot.payload,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ConsentExpiredError) return { status: "consent_expired" };
+    throw error;
+  }
+}
+
+export interface CompareSitePeriodsResult {
+  status: "ok";
+  data: { current: SitePerformanceData; previous: SitePerformanceData };
+}
+
+export type CompareSitePerformanceResult = CompareSitePeriodsResult | Exclude<SitePerformanceResult, { status: "ok" }>;
+
+export async function compareSitePerformance(
+  organisationId: string,
+  wordpressConnectionId: string,
+  range: DateRange = defaultDateRange()
+): Promise<CompareSitePerformanceResult> {
+  const current = await getSitePerformance(organisationId, wordpressConnectionId, range);
+  if (current.status !== "ok") return current;
+
+  const previous = await getSitePerformance(organisationId, wordpressConnectionId, priorPeriod(range));
   if (previous.status !== "ok") return previous;
 
   return { status: "ok", data: { current: current.data, previous: previous.data } };

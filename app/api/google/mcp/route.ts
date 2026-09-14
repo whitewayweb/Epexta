@@ -7,9 +7,19 @@ import { getUserOrganisation } from "@/lib/organisation";
 import { getUserByApiKey } from "@/lib/session";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
-import { comparePostPerformance as compareAnalyticsPeriods, getPostPerformance as getAnalyticsPerformance } from "@/modules/google-analytics/reporting";
+import {
+  comparePostPerformance as compareAnalyticsPeriods,
+  compareSitePerformance as compareSiteAnalyticsPeriods,
+  getPostPerformance as getAnalyticsPerformance,
+  getSitePerformance as getSiteAnalyticsPerformance,
+} from "@/modules/google-analytics/reporting";
 import { listMappingsForOrganisation as listSearchConsoleMappingsForOrganisation } from "@/modules/google-search-console/mappings";
-import { comparePostPerformance as compareSearchConsolePeriods, getPostPerformance as getSearchConsolePerformance } from "@/modules/google-search-console/reporting";
+import {
+  comparePostPerformance as compareSearchConsolePeriods,
+  compareSitePerformance as compareSiteSearchConsolePeriods,
+  getPostPerformance as getSearchConsolePerformance,
+  getSitePerformance as getSiteSearchConsolePerformance,
+} from "@/modules/google-search-console/reporting";
 
 class ToolError extends Error {}
 
@@ -219,15 +229,22 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
   if (extra.googleAnalyticsEnabled) {
     instructionFragments.push(
       "siteId (from list_google_analytics_mapped_sites) selects which mapped WordPress site a tool reports on - " +
-        "it's shared between get_analytics_performance and compare_analytics_periods, so a value obtained from " +
-        "list_google_analytics_mapped_sites can be reused across calls in the same session."
+        "it's shared between get_analytics_performance, compare_analytics_periods, get_site_analytics_performance, " +
+        "and compare_site_analytics_periods, so a value obtained from list_google_analytics_mapped_sites can be " +
+        "reused across calls in the same session. Use get_site_analytics_performance/compare_site_analytics_periods " +
+        "for whole-site questions (e.g. \"how is the site doing\"), and get_analytics_performance/" +
+        "compare_analytics_periods only when the user means one specific post."
     );
   }
   if (extra.googleSearchConsoleEnabled) {
     instructionFragments.push(
       "siteId (from list_search_console_mapped_sites) selects which mapped WordPress site a tool reports on - " +
-        "it's shared between get_search_console_performance and compare_search_console_periods, so a value obtained " +
-        "from list_search_console_mapped_sites can be reused across calls in the same session."
+        "it's shared between get_search_console_performance, compare_search_console_periods, " +
+        "get_site_search_console_performance, and compare_site_search_console_periods, so a value obtained from " +
+        "list_search_console_mapped_sites can be reused across calls in the same session. Use " +
+        "get_site_search_console_performance/compare_site_search_console_periods for whole-property questions " +
+        "(e.g. \"how is the site doing\"), and get_search_console_performance/compare_search_console_periods only " +
+        "when the user means one specific post."
     );
   }
 
@@ -333,6 +350,68 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
             }
           }
         );
+
+        registerAnalyticsTool(
+          "get_site_analytics_performance",
+          {
+            title: "Get Site-Wide Analytics Performance",
+            description:
+              "Report GA4 metrics (active users, sessions, engaged sessions, key events) for an entire mapped WordPress site over a date range, not one post. Defaults to the trailing 28 days.",
+            inputSchema: z.object({
+              siteId: analyticsSiteIdSchema(),
+              startDate: dateSchema.optional().describe("Defaults to 28 days before endDate."),
+              endDate: dateSchema.optional().describe("Defaults to today."),
+            }),
+          },
+          async ({ siteId, startDate, endDate }, ctx) => {
+            try {
+              const currentExtra = extraOf(ctx);
+              const sites = currentExtra?.googleAnalyticsMappedSites ?? [];
+              const resolved = resolveSite(ctx, sites, siteId, "GA4", "/google-analytics/connect", "list_google_analytics_mapped_sites");
+              if (!resolved.ok) return resolved.elicit;
+              const organisationId = currentExtra?.organisationId;
+              if (!organisationId) throw new ToolError("No organisation found for this account.");
+
+              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const result = await getSiteAnalyticsPerformance(organisationId, resolved.wordpressConnectionId, range);
+              if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Analytics", "/google-analytics/connect"));
+              return textResult(result.data);
+            } catch (e) {
+              return errorResult(e, "google-mcp:google-analytics");
+            }
+          }
+        );
+
+        registerAnalyticsTool(
+          "compare_site_analytics_periods",
+          {
+            title: "Compare Site-Wide Analytics Periods",
+            description:
+              "Compare GA4 metrics for an entire mapped WordPress site (not one post) between two equal-length periods, e.g. the latest 28 days versus the previous 28. Defaults to that comparison.",
+            inputSchema: z.object({
+              siteId: analyticsSiteIdSchema(),
+              startDate: dateSchema.optional().describe("Start of the current period. Defaults to 28 days before endDate."),
+              endDate: dateSchema.optional().describe("End of the current period. Defaults to today."),
+            }),
+          },
+          async ({ siteId, startDate, endDate }, ctx) => {
+            try {
+              const currentExtra = extraOf(ctx);
+              const sites = currentExtra?.googleAnalyticsMappedSites ?? [];
+              const resolved = resolveSite(ctx, sites, siteId, "GA4", "/google-analytics/connect", "list_google_analytics_mapped_sites");
+              if (!resolved.ok) return resolved.elicit;
+              const organisationId = currentExtra?.organisationId;
+              if (!organisationId) throw new ToolError("No organisation found for this account.");
+
+              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const result = await compareSiteAnalyticsPeriods(organisationId, resolved.wordpressConnectionId, range);
+              if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Analytics", "/google-analytics/connect"));
+              return textResult(result.data);
+            } catch (e) {
+              return errorResult(e, "google-mcp:google-analytics");
+            }
+          }
+        );
       }
 
       if (extra.googleSearchConsoleEnabled) {
@@ -412,6 +491,68 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
 
               const range = startDate && endDate ? { startDate, endDate } : undefined;
               const result = await compareSearchConsolePeriods(organisationId, resolved.wordpressConnectionId, postId, range);
+              if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
+              return textResult(result.data);
+            } catch (e) {
+              return errorResult(e, "google-mcp:google-search-console");
+            }
+          }
+        );
+
+        registerSearchConsoleTool(
+          "get_site_search_console_performance",
+          {
+            title: "Get Site-Wide Search Console Performance",
+            description:
+              "Report Search Console metrics (clicks, impressions, CTR, average position) for an entire mapped property over a date range, not one post. Defaults to the trailing 28 days.",
+            inputSchema: z.object({
+              siteId: searchConsoleSiteIdSchema(),
+              startDate: dateSchema.optional().describe("Defaults to 28 days before endDate."),
+              endDate: dateSchema.optional().describe("Defaults to today (Pacific Time)."),
+            }),
+          },
+          async ({ siteId, startDate, endDate }, ctx) => {
+            try {
+              const currentExtra = extraOf(ctx);
+              const sites = currentExtra?.googleSearchConsoleMappedSites ?? [];
+              const resolved = resolveSite(ctx, sites, siteId, "Search Console", "/google-search-console/connect", "list_search_console_mapped_sites");
+              if (!resolved.ok) return resolved.elicit;
+              const organisationId = currentExtra?.organisationId;
+              if (!organisationId) throw new ToolError("No organisation found for this account.");
+
+              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const result = await getSiteSearchConsolePerformance(organisationId, resolved.wordpressConnectionId, range);
+              if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
+              return textResult(result.data);
+            } catch (e) {
+              return errorResult(e, "google-mcp:google-search-console");
+            }
+          }
+        );
+
+        registerSearchConsoleTool(
+          "compare_site_search_console_periods",
+          {
+            title: "Compare Site-Wide Search Console Periods",
+            description:
+              "Compare Search Console metrics for an entire mapped property (not one post) between two equal-length periods, e.g. the latest 28 days versus the previous 28. Defaults to that comparison.",
+            inputSchema: z.object({
+              siteId: searchConsoleSiteIdSchema(),
+              startDate: dateSchema.optional().describe("Start of the current period. Defaults to 28 days before endDate."),
+              endDate: dateSchema.optional().describe("End of the current period. Defaults to today (Pacific Time)."),
+            }),
+          },
+          async ({ siteId, startDate, endDate }, ctx) => {
+            try {
+              const currentExtra = extraOf(ctx);
+              const sites = currentExtra?.googleSearchConsoleMappedSites ?? [];
+              const resolved = resolveSite(ctx, sites, siteId, "Search Console", "/google-search-console/connect", "list_search_console_mapped_sites");
+              if (!resolved.ok) return resolved.elicit;
+              const organisationId = currentExtra?.organisationId;
+              if (!organisationId) throw new ToolError("No organisation found for this account.");
+
+              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const result = await compareSiteSearchConsolePeriods(organisationId, resolved.wordpressConnectionId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
               return textResult(result.data);
             } catch (e) {

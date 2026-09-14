@@ -59,6 +59,36 @@ export async function runReport(connectionId: string, input: RunReportInput): Pr
   });
 }
 
+export interface RunSiteReportInput {
+  ga4PropertyId: string;
+  /** The mapped WordPress site's canonical hostname, e.g. "example.com". */
+  hostName: string;
+  startDate: string;
+  endDate: string;
+}
+
+/**
+ * Runs a GA4 report for an entire mapped WordPress site, filtered by hostName alone (no
+ * page path) - the site-wide counterpart to runReport. Still scoped to hostName per "GA4
+ * cross-site filtering" in GOOGLE_PERFORMANCE_PLAN.md, since a single GA4 property can
+ * serve multiple domains and an unfiltered property-wide query would leak another
+ * mapped site's traffic into this one's numbers.
+ */
+export async function runSiteReport(connectionId: string, input: RunSiteReportInput): Promise<ApiRequestResult> {
+  return executeGoogleApiRequest(connectionId, "google-analytics", {
+    method: "POST",
+    url: `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(input.ga4PropertyId)}:runReport`,
+    body: {
+      dateRanges: [{ startDate: input.startDate, endDate: input.endDate }],
+      metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "engagedSessions" }, { name: "keyEvents" }],
+      dimensionFilter: {
+        filter: { fieldName: "hostName", stringFilter: { matchType: "EXACT", value: input.hostName } },
+      },
+      returnPropertyQuota: true,
+    },
+  });
+}
+
 export interface Ga4Metrics {
   activeUsers: number;
   sessions: number;

@@ -3,7 +3,7 @@ import { checkAndIncrementQuota, getOrRefreshReport, type FetchFreshResult } fro
 import { getWordPressConnection } from "../wordpress/organisation";
 import { createWordPressClient } from "../wordpress/client";
 import { getActiveMappingForWordPressConnection } from "./mappings";
-import { runReport, summarizeRunReportRows, extractPropertyQuota, type Ga4Metrics } from "./client";
+import { runReport, runSiteReport, summarizeRunReportRows, extractPropertyQuota, type Ga4Metrics } from "./client";
 
 const SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const LEASE_TTL_MS = 30 * 1000;
@@ -226,6 +226,141 @@ export async function comparePostPerformance(
   if (current.status !== "ok") return current;
 
   const previous = await getPostPerformance(organisationId, wordpressConnectionId, wordpressPostId, priorPeriod(range));
+  if (previous.status !== "ok") return previous;
+
+  return { status: "ok", data: { current: current.data, previous: previous.data } };
+}
+
+export interface SitePerformanceData {
+  hostName: string;
+  dateRangeStart: string;
+  dateRangeEnd: string;
+  timezone: string;
+  freshnessState: "fresh" | "stale" | "delayed" | "unavailable";
+  refreshPending: boolean;
+  metrics: Ga4Metrics;
+}
+
+export type SitePerformanceResult =
+  | { status: "ok"; data: SitePerformanceData }
+  | { status: "not_mapped" }
+  | { status: "consent_expired" }
+  | { status: "temporary_failure" }
+  | { status: "unavailable" };
+
+async function fetchAndSummarizeSite(
+  organisationId: string,
+  wordpressConnectionId: string,
+  googleConnectionId: string,
+  ga4PropertyId: string,
+  hostName: string,
+  range: DateRange
+): Promise<FetchFreshResult<Ga4Metrics>> {
+  const quota = await checkAndIncrementQuota({
+    quotaCollection: "google-analytics-quota-usage",
+    organisationId,
+    wordpressConnectionId,
+    windowMs: QUOTA_WINDOW_MS,
+    limit: QUOTA_LIMIT_PER_WINDOW,
+  });
+  if (!quota.allowed) return { status: "temporary_failure" };
+
+  const result = await runSiteReport(googleConnectionId, {
+    ga4PropertyId,
+    hostName,
+    startDate: range.startDate,
+    endDate: range.endDate,
+  });
+
+  if (result.status === "error") {
+    if (result.reason === "revoked" || result.reason === "needs_reconnect") throw new ConsentExpiredError();
+    if (result.reason === "temporary_failure" || result.reason === "forbidden") return { status: "temporary_failure" };
+    return { status: "unavailable" };
+  }
+
+  const response = result.data as Parameters<typeof summarizeRunReportRows>[0];
+  await recordGa4Quota(ga4PropertyId, extractPropertyQuota(response));
+  return { status: "ok", data: summarizeRunReportRows(response), freshnessState: "fresh" };
+}
+
+/**
+ * Resolves GA4 performance metrics for an entire mapped WordPress site (not one post):
+ * loads the active mapping, derives the site's hostname from its WordPress connection,
+ * filters GA4 by that hostName alone (see "GA4 cross-site filtering" in
+ * GOOGLE_PERFORMANCE_PLAN.md), then serves a cached snapshot or fetches fresh through
+ * the same cache/lease/quota pipeline as getPostPerformance. The cache key reuses the
+ * canonicalPostUrl column to hold the site's hostname (reportType: "site_performance"
+ * keeps it from colliding with any post-scoped row) rather than adding a new column for
+ * a value that already fits the existing shape.
+ */
+export async function getSitePerformance(
+  organisationId: string,
+  wordpressConnectionId: string,
+  range: DateRange = defaultDateRange()
+): Promise<SitePerformanceResult> {
+  const mapping = await getActiveMappingForWordPressConnection(organisationId, wordpressConnectionId);
+  if (!mapping) return { status: "not_mapped" };
+
+  const wpConnection = await getWordPressConnection(organisationId, wordpressConnectionId);
+  if (!wpConnection) return { status: "not_mapped" };
+
+  const hostName = new URL(wpConnection.siteUrl).hostname;
+  const timezone = mapping.reportingTimezone || "UTC";
+
+  try {
+    const result = await getOrRefreshReport<Ga4Metrics>({
+      snapshotCollection: "google-analytics-report-snapshots",
+      leaseCollection: "google-analytics-report-refresh-leases",
+      key: {
+        mapping: mapping.mappingId,
+        reportType: "site_performance",
+        canonicalPostUrl: hostName,
+        normalizedQueryParams: null,
+        dateRangeStart: range.startDate,
+        dateRangeEnd: range.endDate,
+      },
+      ttlMs: SNAPSHOT_TTL_MS,
+      leaseTtlMs: LEASE_TTL_MS,
+      timezone,
+      fetchFresh: () =>
+        fetchAndSummarizeSite(organisationId, wordpressConnectionId, mapping.googleConnectionId, mapping.ga4PropertyId, hostName, range),
+    });
+
+    if (result.status !== "ok") return result;
+    return {
+      status: "ok",
+      data: {
+        hostName,
+        dateRangeStart: range.startDate,
+        dateRangeEnd: range.endDate,
+        timezone,
+        freshnessState: result.snapshot.freshnessState,
+        refreshPending: result.snapshot.refreshPending,
+        metrics: result.snapshot.payload,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ConsentExpiredError) return { status: "consent_expired" };
+    throw error;
+  }
+}
+
+export interface CompareSitePeriodsResult {
+  status: "ok";
+  data: { current: SitePerformanceData; previous: SitePerformanceData };
+}
+
+export type CompareSitePerformanceResult = CompareSitePeriodsResult | Exclude<SitePerformanceResult, { status: "ok" }>;
+
+export async function compareSitePerformance(
+  organisationId: string,
+  wordpressConnectionId: string,
+  range: DateRange = defaultDateRange()
+): Promise<CompareSitePerformanceResult> {
+  const current = await getSitePerformance(organisationId, wordpressConnectionId, range);
+  if (current.status !== "ok") return current;
+
+  const previous = await getSitePerformance(organisationId, wordpressConnectionId, priorPeriod(range));
   if (previous.status !== "ok") return previous;
 
   return { status: "ok", data: { current: current.data, previous: previous.data } };
