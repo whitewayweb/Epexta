@@ -32,6 +32,13 @@ const SETTINGS_LINKS = [
   { href: "/settings/api-key", label: "API key", icon: KeyRound },
 ];
 
+// group is a free-text navigation key on the registry (lib/modules.ts) - it carries no
+// authorization meaning, only how enabled modules are presented. This is the only place
+// a group key is translated into a human label.
+const GROUP_LABELS: Record<string, string> = {
+  "google-site-hub": "Google Site Hub",
+};
+
 export function AppSidebar({
   email,
   enabledModuleSlugs,
@@ -41,6 +48,28 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const visibleModules = MODULES.filter((module) => enabledModuleSlugs.includes(module.slug));
+
+  function moduleGroup(module: (typeof MODULES)[number]): string | undefined {
+    return "group" in module ? module.group : undefined;
+  }
+
+  const ungroupedModules = visibleModules.filter((module) => !moduleGroup(module));
+  const groupKeys = Array.from(new Set(visibleModules.map(moduleGroup).filter((g): g is string => Boolean(g))));
+
+  function renderModuleLink(module: (typeof MODULES)[number]) {
+    return (
+      <SidebarMenuItem key={module.slug}>
+        <SidebarMenuButton
+          isActive={pathname === module.overviewPath || pathname.startsWith(`${module.connectPath}`)}
+          className="hover:bg-sidebar-accent/60"
+          render={<Link href={module.overviewPath} />}
+        >
+          <ModuleIcon slug={module.slug} />
+          <span>{module.name}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
 
   return (
     <Sidebar>
@@ -52,25 +81,25 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Modules</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleModules.map((module) => (
-                <SidebarMenuItem key={module.slug}>
-                  <SidebarMenuButton
-                    isActive={pathname === module.overviewPath || pathname.startsWith(`${module.connectPath}`)}
-                    className="hover:bg-sidebar-accent/60"
-                    render={<Link href={module.overviewPath} />}
-                  >
-                    <ModuleIcon slug={module.slug} />
-                    <span>{module.name}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {ungroupedModules.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Modules</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>{ungroupedModules.map(renderModuleLink)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {groupKeys.map((groupKey) => (
+          <SidebarGroup key={groupKey}>
+            <SidebarGroupLabel>{GROUP_LABELS[groupKey] ?? groupKey}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleModules.filter((module) => moduleGroup(module) === groupKey).map(renderModuleLink)}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
         <SidebarGroup>
           <SidebarGroupLabel>Settings</SidebarGroupLabel>

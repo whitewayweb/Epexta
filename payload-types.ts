@@ -72,6 +72,8 @@ export interface Config {
     'api-keys': ApiKey;
     'module-entitlements': ModuleEntitlement;
     'wordpress-connections': WordpressConnection;
+    'google-connections': GoogleConnection;
+    'google-oauth-states': GoogleOauthState;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -84,6 +86,8 @@ export interface Config {
     'api-keys': ApiKeysSelect<false> | ApiKeysSelect<true>;
     'module-entitlements': ModuleEntitlementsSelect<false> | ModuleEntitlementsSelect<true>;
     'wordpress-connections': WordpressConnectionsSelect<false> | WordpressConnectionsSelect<true>;
+    'google-connections': GoogleConnectionsSelect<false> | GoogleConnectionsSelect<true>;
+    'google-oauth-states': GoogleOauthStatesSelect<false> | GoogleOauthStatesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -192,7 +196,7 @@ export interface ApiKey {
 export interface ModuleEntitlement {
   id: number;
   organisation: number | Organisation;
-  moduleSlug: 'wordpress';
+  moduleSlug: 'wordpress' | 'google-search-console' | 'google-analytics';
   enabled?: boolean | null;
   source?: ('manual' | 'billing' | 'migration') | null;
   updatedAt: string;
@@ -220,6 +224,78 @@ export interface WordpressConnection {
    * WordPress Application Password (24-char, encrypted at rest).
    */
   appPassword: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Google OAuth connections shared by the Google Site Hub modules. Server-only - see modules/google-connections/index.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-connections".
+ */
+export interface GoogleConnection {
+  id: number;
+  organisation: number | Organisation;
+  /**
+   * User-entered display label - reporting scopes never return an email to derive one from.
+   */
+  googleAccountLabel: string;
+  /**
+   * Encrypted at rest. Never readable outside modules/google-connections's own server code.
+   */
+  accessToken?: string | null;
+  /**
+   * Encrypted at rest. Never readable outside modules/google-connections's own server code.
+   */
+  refreshToken?: string | null;
+  /**
+   * The scopes Google's token response actually returned. Immutable after creation.
+   */
+  grantedScopes:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * The capability this connection was authorized for. Immutable after creation.
+   */
+  scopeProfile: 'google-search-console' | 'google-analytics';
+  tokenExpiresAt?: string | null;
+  status: 'active' | 'needs_reconnect' | 'revoked';
+  lastValidatedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Short-lived OAuth state/PKCE records. Server-only - see modules/google-connections/index.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-oauth-states".
+ */
+export interface GoogleOauthState {
+  id: number;
+  state: string;
+  codeVerifier: string;
+  user: number | User;
+  organisation: number | Organisation;
+  capability: 'google-search-console' | 'google-analytics';
+  /**
+   * { "type": "connect" } or { "type": "reconnect", "connectionId": "..." }
+   */
+  flow:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  expiresAt: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -266,6 +342,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'wordpress-connections';
         value: number | WordpressConnection;
+      } | null)
+    | ({
+        relationTo: 'google-connections';
+        value: number | GoogleConnection;
+      } | null)
+    | ({
+        relationTo: 'google-oauth-states';
+        value: number | GoogleOauthState;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -381,6 +465,38 @@ export interface WordpressConnectionsSelect<T extends boolean = true> {
   siteUrl?: T;
   username?: T;
   appPassword?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-connections_select".
+ */
+export interface GoogleConnectionsSelect<T extends boolean = true> {
+  organisation?: T;
+  googleAccountLabel?: T;
+  accessToken?: T;
+  refreshToken?: T;
+  grantedScopes?: T;
+  scopeProfile?: T;
+  tokenExpiresAt?: T;
+  status?: T;
+  lastValidatedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "google-oauth-states_select".
+ */
+export interface GoogleOauthStatesSelect<T extends boolean = true> {
+  state?: T;
+  codeVerifier?: T;
+  user?: T;
+  organisation?: T;
+  capability?: T;
+  flow?: T;
+  expiresAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
