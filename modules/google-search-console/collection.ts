@@ -120,4 +120,16 @@ registerConnectionLifecycleHooks("google-search-console", {
       )
     );
   },
+  isWordPressConnectionReferenced: async (wordpressConnectionId) => {
+    const { getPayloadClient } = await import("../../lib/payload");
+    const payload = await getPayloadClient();
+    const result = await payload.find({
+      collection: "google-search-console-mappings",
+      where: { wordpressConnection: { equals: wordpressConnectionId } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    });
+    return result.docs.length > 0;
+  },
 });

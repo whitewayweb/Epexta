@@ -290,6 +290,7 @@ describe("modules/google-connections", () => {
       registerConnectionLifecycleHooks("google-search-console", {
         isConnectionReferenced: vi.fn().mockResolvedValue(false),
         markMappingsNeedingReconnect,
+        isWordPressConnectionReferenced: vi.fn().mockResolvedValue(false),
       });
 
       await revokeConnection(organisationId, connectionId, adminUserId);
@@ -330,6 +331,7 @@ describe("modules/google-connections", () => {
       registerConnectionLifecycleHooks("google-analytics", {
         isConnectionReferenced: vi.fn().mockResolvedValue(true),
         markMappingsNeedingReconnect: vi.fn().mockResolvedValue(undefined),
+        isWordPressConnectionReferenced: vi.fn().mockResolvedValue(false),
       });
 
       const result = await disconnectOrDelete(organisationId, connectionId, adminUserId);
@@ -344,6 +346,7 @@ describe("modules/google-connections", () => {
       registerConnectionLifecycleHooks("google-analytics", {
         isConnectionReferenced: vi.fn().mockResolvedValue(false),
         markMappingsNeedingReconnect: vi.fn().mockResolvedValue(undefined),
+        isWordPressConnectionReferenced: vi.fn().mockResolvedValue(false),
       });
 
       const result = await disconnectOrDelete(organisationId, connectionId, adminUserId);

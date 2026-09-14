@@ -11,7 +11,12 @@ import {
   getUserOrganisation,
   removeOrganisationMember,
 } from "@/lib/organisation";
-import { createWordPressConnection, deleteWordPressConnection, updateWordPressConnection } from "./organisation";
+import {
+  createWordPressConnection,
+  deleteWordPressConnection,
+  updateWordPressConnection,
+  WordPressConnectionInUseError,
+} from "./organisation";
 
 export interface ConnectionState {
   error: string | null;
@@ -196,7 +201,10 @@ export async function removeConnectionAction(
 
   try {
     await deleteWordPressConnection(organisation.organisationId, connectionId);
-  } catch {
+  } catch (err) {
+    if (err instanceof WordPressConnectionInUseError) {
+      return { error: err.message, success: false };
+    }
     return { error: "Could not remove the connection.", success: false };
   }
 

@@ -1,5 +1,22 @@
 import { getPayloadClient } from "@/lib/payload";
+import { MODULES } from "@/lib/modules";
+import { referencingCapabilitiesForWordPressConnection } from "@/modules/google-connections/registry";
 import type { WordpressConnection as WordPressConnectionDoc } from "@/payload-types";
+
+/**
+ * Thrown by deleteWordPressConnection when a Google Site Hub module (google-search-console,
+ * google-analytics) still has mapping history pointing at this connection. Deleting the
+ * connection anyway would silently cascade-delete that mapping history via the FK's
+ * ON DELETE CASCADE (see migrations/20260914_095814_cascade_delete_fks.ts) - this stops
+ * that instead of letting it happen unnoticed, mirroring how disconnectOrDelete in
+ * modules/google-connections/index.ts already protects a referenced Google connection.
+ */
+export class WordPressConnectionInUseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "WordPressConnectionInUseError";
+  }
+}
 
 export interface WordPressConnection {
   connectionId: string;
@@ -102,6 +119,14 @@ export async function updateWordPressConnection(
 export async function deleteWordPressConnection(organisationId: string, connectionId: string): Promise<void> {
   const existing = await getWordPressConnection(organisationId, connectionId);
   if (!existing) throw new Error("Connection not found for this organisation.");
+
+  const referencingCapabilities = await referencingCapabilitiesForWordPressConnection(connectionId);
+  if (referencingCapabilities.length > 0) {
+    const names = referencingCapabilities.map((slug) => MODULES.find((m) => m.slug === slug)?.name ?? slug);
+    throw new WordPressConnectionInUseError(
+      `This site still has ${names.join(" and ")} mapping history. Remove ${names.length > 1 ? "those mappings" : "that mapping"} first, then delete the connection.`
+    );
+  }
 
   const payload = await getPayloadClient();
   await payload.delete({
