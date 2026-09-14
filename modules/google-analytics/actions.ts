@@ -2,14 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { requireModuleEnabledForUser } from "@/lib/entitlements";
-import { getUserOrganisation } from "@/lib/organisation";
-import { getCurrentUser } from "@/lib/session";
+import { requireOrganisationAdmin, requireOrganisationMember } from "@/lib/module-access";
 import { disconnectOrDelete, revokeConnection, startAuthorization } from "@/modules/google-connections";
 import { createOrReplaceMapping } from "@/modules/google-analytics/mappings";
 import { getPostPerformance, type PostPerformanceData } from "@/modules/google-analytics/reporting";
 
 const CAPABILITY = "google-analytics" as const;
+const MODULE_LABEL = "Google Analytics";
 const CONNECT_PATH = "/google-analytics/connect";
 
 export interface MappingState {
@@ -22,18 +21,6 @@ export interface PerformanceState {
   data: PostPerformanceData | null;
 }
 
-// Reporting is a read-only capability available to any organisation member, not just
-// admins - a separate, narrower check from requireAdmin above.
-async function requireMember(): Promise<{ userId: string; organisationId: string }> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("You must be logged in.");
-
-  const entitlement = await requireModuleEnabledForUser(user.id, CAPABILITY);
-  if (!entitlement.ok) throw new Error("Google Analytics isn't included in your organisation's plan.");
-
-  return { userId: user.id, organisationId: entitlement.organisationId };
-}
-
 const performanceSchema = z.object({
   wordpressConnectionId: z.string().trim().min(1, "Select a site."),
   postId: z.coerce.number().int().positive("Enter a valid WordPress post ID."),
@@ -42,7 +29,7 @@ const performanceSchema = z.object({
 export async function getPerformanceAction(_prevState: PerformanceState, formData: FormData): Promise<PerformanceState> {
   let ctx: { userId: string; organisationId: string };
   try {
-    ctx = await requireMember();
+    ctx = await requireOrganisationMember(CAPABILITY, MODULE_LABEL);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Not allowed.", data: null };
   }
@@ -69,28 +56,14 @@ export async function getPerformanceAction(_prevState: PerformanceState, formDat
   return { error: null, data: result.data };
 }
 
-async function requireAdmin(): Promise<{ userId: string; organisationId: string }> {
-  const user = await getCurrentUser();
-  if (!user) throw new Error("You must be logged in.");
-
-  const entitlement = await requireModuleEnabledForUser(user.id, CAPABILITY);
-  if (!entitlement.ok) throw new Error("Google Analytics isn't included in your organisation's plan.");
-
-  const organisation = await getUserOrganisation(user.id);
-  if (!organisation || organisation.role !== "admin") {
-    throw new Error("Only organisation admins can manage this connection.");
-  }
-  return { userId: user.id, organisationId: organisation.organisationId };
-}
-
 export async function connectGoogleAction(): Promise<void> {
-  const { userId, organisationId } = await requireAdmin();
+  const { userId, organisationId } = await requireOrganisationAdmin(CAPABILITY, MODULE_LABEL);
   const { authorizationUrl } = await startAuthorization(userId, organisationId, CAPABILITY, { type: "connect" });
   redirect(authorizationUrl);
 }
 
 export async function reconnectGoogleAction(formData: FormData): Promise<void> {
-  const { userId, organisationId } = await requireAdmin();
+  const { userId, organisationId } = await requireOrganisationAdmin(CAPABILITY, MODULE_LABEL);
   const connectionId = String(formData.get("connectionId") ?? "");
   if (!connectionId) throw new Error("Missing connection.");
   const { authorizationUrl } = await startAuthorization(userId, organisationId, CAPABILITY, {
@@ -101,7 +74,7 @@ export async function reconnectGoogleAction(formData: FormData): Promise<void> {
 }
 
 export async function disconnectGoogleAction(formData: FormData): Promise<void> {
-  const { userId, organisationId } = await requireAdmin();
+  const { userId, organisationId } = await requireOrganisationAdmin(CAPABILITY, MODULE_LABEL);
   const connectionId = String(formData.get("connectionId") ?? "");
   if (!connectionId) throw new Error("Missing connection.");
   await disconnectOrDelete(organisationId, connectionId, userId);
@@ -109,7 +82,7 @@ export async function disconnectGoogleAction(formData: FormData): Promise<void> 
 }
 
 export async function revokeGoogleAction(formData: FormData): Promise<void> {
-  const { userId, organisationId } = await requireAdmin();
+  const { userId, organisationId } = await requireOrganisationAdmin(CAPABILITY, MODULE_LABEL);
   const connectionId = String(formData.get("connectionId") ?? "");
   if (!connectionId) throw new Error("Missing connection.");
   await revokeConnection(organisationId, connectionId, userId);
@@ -126,7 +99,7 @@ const mappingSchema = z.object({
 export async function saveMappingAction(_prevState: MappingState, formData: FormData): Promise<MappingState> {
   let ctx: { userId: string; organisationId: string };
   try {
-    ctx = await requireAdmin();
+    ctx = await requireOrganisationAdmin(CAPABILITY, MODULE_LABEL);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Not allowed.", success: false };
   }
