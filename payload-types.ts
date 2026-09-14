@@ -318,7 +318,10 @@ export interface GoogleSearchConsoleMapping {
    * e.g. "sc-domain:example.com" or a URL-prefix property.
    */
   searchConsolePropertyUrl: string;
-  confirmedBy: number | User;
+  /**
+   * Who confirmed this mapping. May become unset if that user is later deleted.
+   */
+  confirmedBy?: (number | null) | User;
   confirmedAt: string;
   lastValidatedAt?: string | null;
   status: 'active' | 'needs_reconnect' | 'needs_remapping' | 'superseded';
@@ -346,7 +349,10 @@ export interface GoogleAnalyticsMapping {
    * The GA4 property's own configured reporting timezone, read from the Admin API at mapping time.
    */
   reportingTimezone?: string | null;
-  confirmedBy: number | User;
+  /**
+   * Who confirmed this mapping. May become unset if that user is later deleted.
+   */
+  confirmedBy?: (number | null) | User;
   confirmedAt: string;
   lastValidatedAt?: string | null;
   status: 'active' | 'needs_reconnect' | 'needs_remapping' | 'superseded';

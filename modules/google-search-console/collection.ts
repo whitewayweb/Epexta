@@ -55,7 +55,17 @@ export const GoogleSearchConsoleMappings: CollectionConfig = {
       required: true,
       admin: { description: 'e.g. "sc-domain:example.com" or a URL-prefix property.' },
     },
-    { name: "confirmedBy", type: "relationship", relationTo: "users", required: true },
+    {
+      name: "confirmedBy",
+      type: "relationship",
+      relationTo: "users",
+      // Not required (though createOrReplaceMapping always sets it on create): this is an
+      // audit-trail pointer, not part of the mapping's own integrity. If the referenced
+      // user is later deleted, the FK's ON DELETE SET NULL (see the cascade-delete
+      // migration) must be able to null this column out rather than crash - a NOT NULL
+      // column would make that impossible.
+      admin: { description: "Who confirmed this mapping. May become unset if that user is later deleted." },
+    },
     { name: "confirmedAt", type: "date", required: true },
     { name: "lastValidatedAt", type: "date" },
     {

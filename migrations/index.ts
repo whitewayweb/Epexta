@@ -4,6 +4,7 @@ import * as migration_20260913_225113_add_module_entitlements from './20260913_2
 import * as migration_20260914_093002_google_connections from './20260914_093002_google_connections';
 import * as migration_20260914_093210_google_site_hub_entitlements from './20260914_093210_google_site_hub_entitlements';
 import * as migration_20260914_094627_google_site_hub_mappings from './20260914_094627_google_site_hub_mappings';
+import * as migration_20260914_095814_cascade_delete_fks from './20260914_095814_cascade_delete_fks';
 
 export const migrations = [
   {
@@ -34,6 +35,11 @@ export const migrations = [
   {
     up: migration_20260914_094627_google_site_hub_mappings.up,
     down: migration_20260914_094627_google_site_hub_mappings.down,
-    name: '20260914_094627_google_site_hub_mappings'
+    name: '20260914_094627_google_site_hub_mappings',
+  },
+  {
+    up: migration_20260914_095814_cascade_delete_fks.up,
+    down: migration_20260914_095814_cascade_delete_fks.down,
+    name: '20260914_095814_cascade_delete_fks'
   },
 ];
