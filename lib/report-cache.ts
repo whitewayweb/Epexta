@@ -130,9 +130,9 @@ export async function getOrRefreshReport<T>(opts: GetOrRefreshOptions<T>): Promi
     await payload.delete({ collection: opts.leaseCollection as never, id: staleLeaseDoc.id, overrideAccess: true }).catch(() => {});
   }
 
-  let acquiredLease = false;
+  let ownLeaseId: string | number | undefined;
   try {
-    await payload.create({
+    const created = await payload.create({
       collection: opts.leaseCollection as never,
       data: {
         ...opts.key,
@@ -143,13 +143,13 @@ export async function getOrRefreshReport<T>(opts: GetOrRefreshOptions<T>): Promi
       } as never,
       overrideAccess: true,
     });
-    acquiredLease = true;
+    ownLeaseId = (created as { id: string | number }).id;
   } catch {
     // Unique constraint rejected the insert - another caller holds the lease.
-    acquiredLease = false;
+    ownLeaseId = undefined;
   }
 
-  if (!acquiredLease) {
+  if (ownLeaseId === undefined) {
     if (existingDoc) {
       return {
         status: "ok",
@@ -216,17 +216,12 @@ export async function getOrRefreshReport<T>(opts: GetOrRefreshOptions<T>): Promi
       snapshot: { payload: fresh.data, freshnessState: fresh.freshnessState, fetchedAt, timezone: opts.timezone, refreshPending: false },
     };
   } finally {
-    const lease = await payload.find({
-      collection: opts.leaseCollection as never,
-      where: whereForKey(opts.key) as never,
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    });
-    const leaseDoc = lease.docs[0] as { id: string | number } | undefined;
-    if (leaseDoc) {
-      await payload.delete({ collection: opts.leaseCollection as never, id: leaseDoc.id, overrideAccess: true }).catch(() => {});
-    }
+    // Delete only the lease this call created (by id), never by re-querying the key -
+    // if this call's own lease was reclaimed as abandoned (expired past leaseTtlMs while
+    // fetchFresh was still in flight) and a different caller now holds a new lease under
+    // the same key, a key-based lookup here would delete that caller's active lease
+    // instead, breaking deduplication.
+    await payload.delete({ collection: opts.leaseCollection as never, id: ownLeaseId, overrideAccess: true }).catch(() => {});
   }
 }
 
@@ -260,19 +255,20 @@ export async function checkAndIncrementQuota(opts: {
 }): Promise<{ allowed: boolean; requestCount: number }> {
   const payload = await getPayloadClient();
   const windowStart = new Date(Math.floor(Date.now() / opts.windowMs) * opts.windowMs).toISOString();
+  const where = {
+    organisation: { equals: opts.organisationId },
+    wordpressConnection: { equals: opts.wordpressConnectionId },
+    windowStart: { equals: windowStart },
+  };
 
   const existing = await payload.find({
     collection: opts.quotaCollection as never,
-    where: {
-      organisation: { equals: opts.organisationId },
-      wordpressConnection: { equals: opts.wordpressConnectionId },
-      windowStart: { equals: windowStart },
-    } as never,
+    where: where as never,
     limit: 1,
     depth: 0,
     overrideAccess: true,
   });
-  const existingDoc = existing.docs[0] as { id: string | number; requestCount: number } | undefined;
+  let existingDoc = existing.docs[0] as { id: string | number; requestCount: number } | undefined;
 
   if (!existingDoc) {
     try {
@@ -288,8 +284,18 @@ export async function checkAndIncrementQuota(opts: {
       });
       return { allowed: true, requestCount: 1 };
     } catch {
-      // Lost a create race to a concurrent request for the same window - fall through
-      // and treat it the same as the existing-row path below.
+      // Lost a create race to a concurrent request for the same window - re-read the
+      // winner's row rather than falling through with existingDoc still undefined,
+      // which would let every loser of the race through uncounted (never rereading or
+      // incrementing the row the winner actually created).
+      const refetched = await payload.find({
+        collection: opts.quotaCollection as never,
+        where: where as never,
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+      });
+      existingDoc = refetched.docs[0] as { id: string | number; requestCount: number } | undefined;
     }
   }
 

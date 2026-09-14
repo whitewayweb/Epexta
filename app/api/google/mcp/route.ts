@@ -185,6 +185,34 @@ function resolveSite(
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD.");
 
+/** True only for a real calendar date - the regex above accepts e.g. "2026-02-31". */
+function isValidCalendarDate(dateStr: string): boolean {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/**
+ * Shared startDate/endDate resolution for every report tool below - previously each of
+ * the 8 handlers repeated `startDate && endDate ? { startDate, endDate } : undefined`,
+ * which silently ignored a caller supplying only one of the two (falling back to the
+ * default range) rather than surfacing the ambiguity. Centralized here per CLAUDE.md's
+ * rule against duplicating the same validation across call sites.
+ */
+function resolveDateRange(startDate: string | undefined, endDate: string | undefined): { startDate: string; endDate: string } | undefined {
+  if (!startDate && !endDate) return undefined;
+  if (!startDate || !endDate) {
+    throw new ToolError("Provide both startDate and endDate, or neither to use the default range.");
+  }
+  if (!isValidCalendarDate(startDate) || !isValidCalendarDate(endDate)) {
+    throw new ToolError("startDate and endDate must be real calendar dates in YYYY-MM-DD format.");
+  }
+  if (startDate > endDate) {
+    throw new ToolError("startDate must not be after endDate.");
+  }
+  return { startDate, endDate };
+}
+
 function analyticsSiteIdSchema() {
   return z
     .number()
@@ -309,7 +337,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await getAnalyticsPerformance(organisationId, resolved.wordpressConnectionId, postId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Analytics", "/google-analytics/connect"));
               return textResult(result.data);
@@ -341,7 +369,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await compareAnalyticsPeriods(organisationId, resolved.wordpressConnectionId, postId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Analytics", "/google-analytics/connect"));
               return textResult(result.data);
@@ -372,7 +400,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await getSiteAnalyticsPerformance(organisationId, resolved.wordpressConnectionId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Analytics", "/google-analytics/connect"));
               return textResult(result.data);
@@ -403,7 +431,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await compareSiteAnalyticsPeriods(organisationId, resolved.wordpressConnectionId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Analytics", "/google-analytics/connect"));
               return textResult(result.data);
@@ -457,7 +485,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await getSearchConsolePerformance(organisationId, resolved.wordpressConnectionId, postId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
               return textResult(result.data);
@@ -489,7 +517,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await compareSearchConsolePeriods(organisationId, resolved.wordpressConnectionId, postId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
               return textResult(result.data);
@@ -520,7 +548,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await getSiteSearchConsolePerformance(organisationId, resolved.wordpressConnectionId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
               return textResult(result.data);
@@ -551,7 +579,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
               const organisationId = currentExtra?.organisationId;
               if (!organisationId) throw new ToolError("No organisation found for this account.");
 
-              const range = startDate && endDate ? { startDate, endDate } : undefined;
+              const range = resolveDateRange(startDate, endDate);
               const result = await compareSiteSearchConsolePeriods(organisationId, resolved.wordpressConnectionId, range);
               if (result.status !== "ok") throw new ToolError(reportErrorMessage(result.status, "Search Console", "/google-search-console/connect"));
               return textResult(result.data);

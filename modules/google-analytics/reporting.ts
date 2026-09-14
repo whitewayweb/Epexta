@@ -44,6 +44,25 @@ export function defaultDateRange(days = 28, endingBefore = new Date()): DateRang
   };
 }
 
+function isoDateInTimezone(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+/**
+ * Same trailing-window shape as defaultDateRange, but the calendar boundary is taken in
+ * the mapped GA4 property's own reporting timezone rather than UTC - GA4 itself reports
+ * days from midnight in the property's timezone, and the mapping's timezone is already
+ * returned to callers as the report's `timezone` field, so the "today"/"28 days ago"
+ * default should agree with it rather than silently drifting near a UTC midnight for any
+ * non-UTC property.
+ */
+export function defaultDateRangeInTimezone(timezone: string, days = 28, endingBefore = new Date()): DateRange {
+  return {
+    startDate: isoDateInTimezone(new Date(endingBefore.getTime() - days * 24 * 60 * 60 * 1000), timezone),
+    endDate: isoDateInTimezone(endingBefore, timezone),
+  };
+}
+
 /** The equal-length period immediately preceding `range`, for compare_analytics_periods. */
 export function priorPeriod(range: DateRange): DateRange {
   const start = new Date(`${range.startDate}T00:00:00Z`);
@@ -160,7 +179,7 @@ export async function getPostPerformance(
   organisationId: string,
   wordpressConnectionId: string,
   wordpressPostId: number,
-  range: DateRange = defaultDateRange()
+  range?: DateRange
 ): Promise<PostPerformanceResult> {
   const mapping = await getActiveMappingForWordPressConnection(organisationId, wordpressConnectionId);
   if (!mapping) return { status: "not_mapped" };
@@ -173,6 +192,7 @@ export async function getPostPerformance(
   const hostName = url.hostname;
   const pagePathPlusQueryString = `${url.pathname}${url.search}`;
   const timezone = mapping.reportingTimezone || "UTC";
+  const resolvedRange = range ?? defaultDateRangeInTimezone(timezone);
 
   try {
     const result = await getOrRefreshReport<Ga4Metrics>({
@@ -183,8 +203,8 @@ export async function getPostPerformance(
         reportType: "post_performance",
         canonicalPostUrl: post.canonicalLink,
         normalizedQueryParams: null,
-        dateRangeStart: range.startDate,
-        dateRangeEnd: range.endDate,
+        dateRangeStart: resolvedRange.startDate,
+        dateRangeEnd: resolvedRange.endDate,
       },
       ttlMs: SNAPSHOT_TTL_MS,
       leaseTtlMs: LEASE_TTL_MS,
@@ -197,7 +217,7 @@ export async function getPostPerformance(
           mapping.ga4PropertyId,
           hostName,
           pagePathPlusQueryString,
-          range
+          resolvedRange
         ),
     });
 
@@ -206,8 +226,8 @@ export async function getPostPerformance(
       status: "ok",
       data: {
         canonicalPostUrl: post.canonicalLink,
-        dateRangeStart: range.startDate,
-        dateRangeEnd: range.endDate,
+        dateRangeStart: resolvedRange.startDate,
+        dateRangeEnd: resolvedRange.endDate,
         timezone,
         freshnessState: result.snapshot.freshnessState,
         refreshPending: result.snapshot.refreshPending,
@@ -231,12 +251,16 @@ export async function comparePostPerformance(
   organisationId: string,
   wordpressConnectionId: string,
   wordpressPostId: number,
-  range: DateRange = defaultDateRange()
+  range?: DateRange
 ): Promise<ComparePerformanceResult> {
   const current = await getPostPerformance(organisationId, wordpressConnectionId, wordpressPostId, range);
   if (current.status !== "ok") return current;
 
-  const previous = await getPostPerformance(organisationId, wordpressConnectionId, wordpressPostId, priorPeriod(range));
+  // Base the previous period on the range getPostPerformance actually resolved (rather
+  // than recomputing a default here too), so a caller-omitted range still compares two
+  // periods that are genuinely adjacent instead of two independently-defaulted ones.
+  const resolvedCurrentRange = { startDate: current.data.dateRangeStart, endDate: current.data.dateRangeEnd };
+  const previous = await getPostPerformance(organisationId, wordpressConnectionId, wordpressPostId, priorPeriod(resolvedCurrentRange));
   if (previous.status !== "ok") return previous;
 
   return { status: "ok", data: { current: current.data, previous: previous.data } };
@@ -285,7 +309,7 @@ function fetchAndSummarizeSite(
 export async function getSitePerformance(
   organisationId: string,
   wordpressConnectionId: string,
-  range: DateRange = defaultDateRange()
+  range?: DateRange
 ): Promise<SitePerformanceResult> {
   const mapping = await getActiveMappingForWordPressConnection(organisationId, wordpressConnectionId);
   if (!mapping) return { status: "not_mapped" };
@@ -295,6 +319,7 @@ export async function getSitePerformance(
 
   const hostName = new URL(wpConnection.siteUrl).hostname;
   const timezone = mapping.reportingTimezone || "UTC";
+  const resolvedRange = range ?? defaultDateRangeInTimezone(timezone);
 
   try {
     const result = await getOrRefreshReport<Ga4Metrics>({
@@ -305,14 +330,14 @@ export async function getSitePerformance(
         reportType: "site_performance",
         canonicalPostUrl: hostName,
         normalizedQueryParams: null,
-        dateRangeStart: range.startDate,
-        dateRangeEnd: range.endDate,
+        dateRangeStart: resolvedRange.startDate,
+        dateRangeEnd: resolvedRange.endDate,
       },
       ttlMs: SNAPSHOT_TTL_MS,
       leaseTtlMs: LEASE_TTL_MS,
       timezone,
       fetchFresh: () =>
-        fetchAndSummarizeSite(organisationId, wordpressConnectionId, mapping.googleConnectionId, mapping.ga4PropertyId, hostName, range),
+        fetchAndSummarizeSite(organisationId, wordpressConnectionId, mapping.googleConnectionId, mapping.ga4PropertyId, hostName, resolvedRange),
     });
 
     if (result.status !== "ok") return result;
@@ -320,8 +345,8 @@ export async function getSitePerformance(
       status: "ok",
       data: {
         hostName,
-        dateRangeStart: range.startDate,
-        dateRangeEnd: range.endDate,
+        dateRangeStart: resolvedRange.startDate,
+        dateRangeEnd: resolvedRange.endDate,
         timezone,
         freshnessState: result.snapshot.freshnessState,
         refreshPending: result.snapshot.refreshPending,
@@ -344,12 +369,15 @@ export type CompareSitePerformanceResult = CompareSitePeriodsResult | Exclude<Si
 export async function compareSitePerformance(
   organisationId: string,
   wordpressConnectionId: string,
-  range: DateRange = defaultDateRange()
+  range?: DateRange
 ): Promise<CompareSitePerformanceResult> {
   const current = await getSitePerformance(organisationId, wordpressConnectionId, range);
   if (current.status !== "ok") return current;
 
-  const previous = await getSitePerformance(organisationId, wordpressConnectionId, priorPeriod(range));
+  // See comparePostPerformance - base the previous period on the range actually
+  // resolved rather than recomputing an independent default here.
+  const resolvedCurrentRange = { startDate: current.data.dateRangeStart, endDate: current.data.dateRangeEnd };
+  const previous = await getSitePerformance(organisationId, wordpressConnectionId, priorPeriod(resolvedCurrentRange));
   if (previous.status !== "ok") return previous;
 
   return { status: "ok", data: { current: current.data, previous: previous.data } };

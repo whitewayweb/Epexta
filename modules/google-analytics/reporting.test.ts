@@ -5,7 +5,7 @@ import { createOrReplaceMapping } from "./mappings";
 
 vi.mock("./client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client")>();
-  return { ...actual, runReport: vi.fn() };
+  return { ...actual, runReport: vi.fn(), runSiteReport: vi.fn() };
 });
 
 vi.mock("../wordpress/client", async (importOriginal) => {
@@ -25,15 +25,25 @@ vi.mock("../wordpress/client", async (importOriginal) => {
 
 // Imported after the mocks so every call inside reporting.ts resolves to the mocked
 // modules - these tests never talk to Google's or a real WordPress site's real API.
-const { getPostPerformance, comparePostPerformance, defaultDateRange, priorPeriod } = await import("./reporting");
+const {
+  getPostPerformance,
+  comparePostPerformance,
+  getSitePerformance,
+  compareSitePerformance,
+  defaultDateRange,
+  defaultDateRangeInTimezone,
+  priorPeriod,
+} = await import("./reporting");
 const clientModule = await import("./client");
 const runReport = vi.mocked(clientModule.runReport);
+const runSiteReport = vi.mocked(clientModule.runSiteReport);
 
 describe("google-analytics getPostPerformance", () => {
   let organisationId: string;
   let adminUserId: string;
   let wordpressConnectionId: string;
   let googleConnectionId: string;
+  let hostName: string;
 
   beforeAll(async () => {
     const payload = await getPayloadClient();
@@ -52,11 +62,13 @@ describe("google-analytics getPostPerformance", () => {
     });
     organisationId = String(org.id);
 
+    const siteUrl = `https://ga-reporting-test-${suffix}.example.com`;
+    hostName = new URL(siteUrl).hostname;
     const wpConnection = await payload.create({
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
-        siteUrl: `https://ga-reporting-test-${suffix}.example.com`,
+        siteUrl,
         username: "admin",
         appPassword: "fake app password",
       },
@@ -92,7 +104,12 @@ describe("google-analytics getPostPerformance", () => {
     await payload
       .delete({
         collection: "google-analytics-report-snapshots",
-        where: { canonicalPostUrl: { equals: "https://ga-reporting-test.example.com/hello-world/?utm_source=x" } },
+        where: {
+          or: [
+            { canonicalPostUrl: { equals: "https://ga-reporting-test.example.com/hello-world/?utm_source=x" } },
+            { canonicalPostUrl: { equals: hostName } },
+          ],
+        },
         overrideAccess: true,
       })
       .catch(() => {});
@@ -164,6 +181,55 @@ describe("google-analytics getPostPerformance", () => {
     expect(result.data.previous.dateRangeEnd).toBe("2025-02-28");
     expect(result.data.previous.dateRangeStart).toBe("2025-02-01");
   });
+
+  it("defaults to the mapped GA4 property's own reporting timezone, not UTC", async () => {
+    runReport.mockResolvedValue({
+      status: "ok",
+      data: { rows: [{ metricValues: [{ value: "1" }, { value: "1" }, { value: "1" }, { value: "0" }] }] },
+    });
+
+    const expected = defaultDateRangeInTimezone("Europe/London");
+    const result = await getPostPerformance(organisationId, wordpressConnectionId, 42);
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") throw new Error("unreachable");
+    expect(result.data.dateRangeStart).toBe(expected.startDate);
+    expect(result.data.dateRangeEnd).toBe(expected.endDate);
+  });
+
+  it("resolves site-wide GA4 metrics using the WordPress connection's hostname, not one post", async () => {
+    runSiteReport.mockResolvedValue({
+      status: "ok",
+      data: { rows: [{ metricValues: [{ value: "100" }, { value: "50" }, { value: "40" }, { value: "5" }] }] },
+    });
+
+    const range = { startDate: "2025-04-01", endDate: "2025-04-28" };
+    const result = await getSitePerformance(organisationId, wordpressConnectionId, range);
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") throw new Error("unreachable");
+    expect(result.data.metrics).toEqual({ activeUsers: 100, sessions: 50, engagedSessions: 40, keyEvents: 5 });
+    expect(result.data.hostName).toBe(hostName);
+    expect(result.data.timezone).toBe("Europe/London");
+
+    expect(runSiteReport).toHaveBeenCalledWith(
+      googleConnectionId,
+      expect.objectContaining({ ga4PropertyId: "properties/999888777", hostName })
+    );
+  });
+
+  it("compares two site-wide periods and reports both with correct date ranges", async () => {
+    runSiteReport.mockResolvedValue({
+      status: "ok",
+      data: { rows: [{ metricValues: [{ value: "10" }, { value: "5" }, { value: "4" }, { value: "1" }] }] },
+    });
+
+    const range = { startDate: "2025-05-01", endDate: "2025-05-28" };
+    const result = await compareSitePerformance(organisationId, wordpressConnectionId, range);
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") throw new Error("unreachable");
+    expect(result.data.current.dateRangeStart).toBe("2025-05-01");
+    expect(result.data.previous.dateRangeEnd).toBe("2025-04-30");
+    expect(result.data.previous.dateRangeStart).toBe("2025-04-03");
+  });
 });
 
 describe("date range helpers", () => {
@@ -177,5 +243,13 @@ describe("date range helpers", () => {
     const prior = priorPeriod({ startDate: "2026-06-01", endDate: "2026-06-28" });
     expect(prior.endDate).toBe("2026-05-31");
     expect(prior.startDate).toBe("2026-05-04");
+  });
+
+  it("defaultDateRangeInTimezone anchors the boundary to the given timezone, not UTC", () => {
+    // 2026-06-15T23:30:00Z is already 2026-06-16 in Auckland (UTC+12) but still
+    // 2026-06-15 in UTC - the two functions must disagree on "today" here.
+    const instant = new Date("2026-06-15T23:30:00Z");
+    expect(defaultDateRange(28, instant).endDate).toBe("2026-06-15");
+    expect(defaultDateRangeInTimezone("Pacific/Auckland", 28, instant).endDate).toBe("2026-06-16");
   });
 });

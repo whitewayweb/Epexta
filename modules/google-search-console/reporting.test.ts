@@ -5,7 +5,7 @@ import { createOrReplaceMapping } from "./mappings";
 
 vi.mock("./client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client")>();
-  return { ...actual, querySearchAnalytics: vi.fn() };
+  return { ...actual, querySearchAnalytics: vi.fn(), querySiteSearchAnalytics: vi.fn() };
 });
 
 vi.mock("../wordpress/client", async (importOriginal) => {
@@ -25,9 +25,11 @@ vi.mock("../wordpress/client", async (importOriginal) => {
 
 // Imported after the mocks so every call inside reporting.ts resolves to the mocked
 // modules - these tests never talk to Google's or a real WordPress site's real API.
-const { getPostPerformance, comparePostPerformance, defaultDateRange, priorPeriod } = await import("./reporting");
+const { getPostPerformance, comparePostPerformance, getSitePerformance, compareSitePerformance, defaultDateRange, priorPeriod } =
+  await import("./reporting");
 const clientModule = await import("./client");
 const querySearchAnalytics = vi.mocked(clientModule.querySearchAnalytics);
+const querySiteSearchAnalytics = vi.mocked(clientModule.querySiteSearchAnalytics);
 
 describe("google-search-console getPostPerformance", () => {
   let organisationId: string;
@@ -90,7 +92,16 @@ describe("google-search-console getPostPerformance", () => {
       .delete({ collection: "google-search-console-mappings", where: { organisation: { equals: organisationId } }, overrideAccess: true })
       .catch(() => {});
     await payload
-      .delete({ collection: "google-search-console-report-snapshots", where: { canonicalPostUrl: { equals: "https://reporting-test.example.com/hello-world/" } }, overrideAccess: true })
+      .delete({
+        collection: "google-search-console-report-snapshots",
+        where: {
+          or: [
+            { canonicalPostUrl: { equals: "https://reporting-test.example.com/hello-world/" } },
+            { canonicalPostUrl: { equals: "sc-domain:reporting-test.example.com" } },
+          ],
+        },
+        overrideAccess: true,
+      })
       .catch(() => {});
     await payload.delete({ collection: "google-connections", id: googleConnectionId, overrideAccess: true }).catch(() => {});
     await payload.delete({ collection: "wordpress-connections", id: wordpressConnectionId, overrideAccess: true }).catch(() => {});
@@ -178,6 +189,41 @@ describe("google-search-console getPostPerformance", () => {
     if (result.status !== "ok") throw new Error("unreachable");
     expect(result.data.current.dateRangeStart).toBe("2025-03-01");
     expect(result.data.previous.dateRangeEnd).toBe("2025-02-28");
+  });
+
+  it("resolves site-wide Search Console metrics for the whole mapped property, not one post", async () => {
+    querySiteSearchAnalytics.mockResolvedValue({
+      status: "ok",
+      data: { rows: [{ clicks: 200, impressions: 2000, ctr: 0.1, position: 4.2 }] },
+    });
+
+    const range = { startDate: "2025-04-01", endDate: "2025-04-28" };
+    const result = await getSitePerformance(organisationId, wordpressConnectionId, range);
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") throw new Error("unreachable");
+    expect(result.data.metrics).toEqual({ clicks: 200, impressions: 2000, ctr: 0.1, position: 4.2 });
+    expect(result.data.propertyUrl).toBe("sc-domain:reporting-test.example.com");
+    expect(result.data.timezone).toBe("America/Los_Angeles");
+
+    expect(querySiteSearchAnalytics).toHaveBeenCalledWith(
+      googleConnectionId,
+      expect.objectContaining({ propertyUrl: "sc-domain:reporting-test.example.com" })
+    );
+  });
+
+  it("compares two site-wide periods and reports both with correct date ranges", async () => {
+    querySiteSearchAnalytics.mockResolvedValue({
+      status: "ok",
+      data: { rows: [{ clicks: 20, impressions: 200, ctr: 0.1, position: 4 }] },
+    });
+
+    const range = { startDate: "2025-05-01", endDate: "2025-05-28" };
+    const result = await compareSitePerformance(organisationId, wordpressConnectionId, range);
+    expect(result.status).toBe("ok");
+    if (result.status !== "ok") throw new Error("unreachable");
+    expect(result.data.current.dateRangeStart).toBe("2025-05-01");
+    expect(result.data.previous.dateRangeEnd).toBe("2025-04-30");
+    expect(result.data.previous.dateRangeStart).toBe("2025-04-03");
   });
 });
 

@@ -7,7 +7,7 @@ import type { CollectionConfig } from "payload";
 // access pattern as modules/google-connections/collections.ts (access returns false for
 // every ordinary Payload REST/GraphQL/admin request), read and written exclusively by
 // modules/google-analytics/reporting.ts using overrideAccess: true.
-const REPORT_TYPES = ["post_performance", "compare_periods", "site_performance"] as const;
+const REPORT_TYPES = ["post_performance", "site_performance"] as const;
 const FRESHNESS_STATES = ["fresh", "stale", "delayed", "unavailable"] as const;
 
 const serverOnlyAccess = {

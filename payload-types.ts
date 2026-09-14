@@ -386,7 +386,7 @@ export interface GoogleAnalyticsMapping {
 export interface GoogleSearchConsoleReportSnapshot {
   id: number;
   mapping: number | GoogleSearchConsoleMapping;
-  reportType: 'post_performance' | 'compare_periods' | 'search_queries' | 'index_status' | 'site_performance';
+  reportType: 'post_performance' | 'search_queries' | 'index_status' | 'site_performance';
   canonicalPostUrl: string;
   normalizedQueryParams?: string | null;
   dateRangeStart: string;
@@ -422,7 +422,7 @@ export interface GoogleSearchConsoleReportSnapshot {
 export interface GoogleSearchConsoleReportRefreshLease {
   id: number;
   mapping: number | GoogleSearchConsoleMapping;
-  reportType: 'post_performance' | 'compare_periods' | 'search_queries' | 'index_status' | 'site_performance';
+  reportType: 'post_performance' | 'search_queries' | 'index_status' | 'site_performance';
   canonicalPostUrl: string;
   normalizedQueryParams?: string | null;
   dateRangeStart: string;
@@ -456,7 +456,7 @@ export interface GoogleSearchConsoleQuotaUsage {
 export interface GoogleAnalyticsReportSnapshot {
   id: number;
   mapping: number | GoogleAnalyticsMapping;
-  reportType: 'post_performance' | 'compare_periods' | 'site_performance';
+  reportType: 'post_performance' | 'site_performance';
   canonicalPostUrl: string;
   normalizedQueryParams?: string | null;
   dateRangeStart: string;
@@ -492,7 +492,7 @@ export interface GoogleAnalyticsReportSnapshot {
 export interface GoogleAnalyticsReportRefreshLease {
   id: number;
   mapping: number | GoogleAnalyticsMapping;
-  reportType: 'post_performance' | 'compare_periods' | 'site_performance';
+  reportType: 'post_performance' | 'site_performance';
   canonicalPostUrl: string;
   normalizedQueryParams?: string | null;
   dateRangeStart: string;
