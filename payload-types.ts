@@ -244,6 +244,38 @@ export interface WordpressConnection {
    * WordPress Application Password (24-char, encrypted at rest).
    */
   appPassword: string;
+  /**
+   * Which SEO plugin to assume when detection is ambiguous. Never overrides a confirmed absence of that plugin.
+   */
+  seoProviderPreference?: ('auto' | 'yoast' | 'rank-math' | 'aioseo') | null;
+  /**
+   * Last observed SEO provider profile state.
+   */
+  seoProfileState?: ('confirmed' | 'selected' | 'ambiguous' | 'unknown' | 'unsupported' | 'unavailable') | null;
+  /**
+   * SEO provider last confirmed on this site, if any.
+   */
+  seoProviderObserved?: ('yoast' | 'rank-math' | 'aioseo') | null;
+  /**
+   * Probe evidence identifiers behind the last observed state.
+   */
+  seoProfileEvidence?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * When the SEO provider was last probed.
+   */
+  seoProfileObservedAt?: string | null;
+  /**
+   * Diagnostic from the last failed probe, if any.
+   */
+  seoProfileError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -758,6 +790,12 @@ export interface WordpressConnectionsSelect<T extends boolean = true> {
   siteUrl?: T;
   username?: T;
   appPassword?: T;
+  seoProviderPreference?: T;
+  seoProfileState?: T;
+  seoProviderObserved?: T;
+  seoProfileEvidence?: T;
+  seoProfileObservedAt?: T;
+  seoProfileError?: T;
   updatedAt?: T;
   createdAt?: T;
 }

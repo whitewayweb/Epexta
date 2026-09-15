@@ -82,5 +82,42 @@ export const WordPressConnections: CollectionConfig = {
         description: "WordPress Application Password (24-char, encrypted at rest).",
       },
     },
+    {
+      name: "seoProviderPreference",
+      type: "select",
+      options: ["auto", "yoast", "rank-math", "aioseo"],
+      defaultValue: "auto",
+      admin: {
+        description:
+          "Which SEO plugin to assume when detection is ambiguous. Never overrides a confirmed absence of that plugin.",
+      },
+    },
+    {
+      name: "seoProfileState",
+      type: "select",
+      options: ["confirmed", "selected", "ambiguous", "unknown", "unsupported", "unavailable"],
+      admin: { readOnly: true, description: "Last observed SEO provider profile state." },
+    },
+    {
+      name: "seoProviderObserved",
+      type: "select",
+      options: ["yoast", "rank-math", "aioseo"],
+      admin: { readOnly: true, description: "SEO provider last confirmed on this site, if any." },
+    },
+    {
+      name: "seoProfileEvidence",
+      type: "json",
+      admin: { readOnly: true, description: "Probe evidence identifiers behind the last observed state." },
+    },
+    {
+      name: "seoProfileObservedAt",
+      type: "date",
+      admin: { readOnly: true, description: "When the SEO provider was last probed." },
+    },
+    {
+      name: "seoProfileError",
+      type: "text",
+      admin: { readOnly: true, description: "Diagnostic from the last failed probe, if any." },
+    },
   ],
 };

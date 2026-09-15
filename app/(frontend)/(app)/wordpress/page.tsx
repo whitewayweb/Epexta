@@ -23,13 +23,8 @@ export default async function WordPressOverviewPage() {
   const organisation = await getUserOrganisation(user.id);
   const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
   const isAdmin = organisation?.role === "admin";
-  // Application Passwords never leave the server - only pull the fields this page displays.
-  const sites = connections.map(({ connectionId, label, siteUrl, username }) => ({
-    connectionId,
-    label,
-    siteUrl,
-    username,
-  }));
+  // Application Passwords never leave the server - strip just that field.
+  const sites = connections.map(({ appPassword: _appPassword, ...rest }) => rest);
 
   return (
     <div className="flex flex-col gap-6">

@@ -18,12 +18,21 @@ export class WordPressConnectionInUseError extends Error {
   }
 }
 
+export type SeoProviderPreference = "auto" | "yoast" | "rank-math" | "aioseo";
+export type SeoProfileStateField = "confirmed" | "selected" | "ambiguous" | "unknown" | "unsupported" | "unavailable";
+
 export interface WordPressConnection {
   connectionId: string;
   label: string;
   siteUrl: string;
   username: string;
   appPassword: string;
+  seoProviderPreference: SeoProviderPreference;
+  seoProfileState: SeoProfileStateField | null;
+  seoProviderObserved: "yoast" | "rank-math" | "aioseo" | null;
+  seoProfileEvidence: unknown;
+  seoProfileObservedAt: string | null;
+  seoProfileError: string | null;
 }
 
 // Application Passwords never leave the server - this is the shape safe to hand to a
@@ -52,6 +61,12 @@ function toConnection(doc: WordPressConnectionDoc): WordPressConnection {
     siteUrl: String(doc.siteUrl),
     username: String(doc.username),
     appPassword: String(doc.appPassword),
+    seoProviderPreference: (doc.seoProviderPreference as SeoProviderPreference | undefined) ?? "auto",
+    seoProfileState: (doc.seoProfileState as SeoProfileStateField | undefined) ?? null,
+    seoProviderObserved: (doc.seoProviderObserved as WordPressConnection["seoProviderObserved"]) ?? null,
+    seoProfileEvidence: doc.seoProfileEvidence ?? null,
+    seoProfileObservedAt: doc.seoProfileObservedAt ?? null,
+    seoProfileError: doc.seoProfileError ?? null,
   };
 }
 

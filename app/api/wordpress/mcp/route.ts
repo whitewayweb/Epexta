@@ -13,12 +13,14 @@ import {
   type WordPressCredentials,
 } from "@/modules/wordpress/client";
 import { listWordPressConnections, type WordPressConnection } from "@/modules/wordpress/organisation";
-import { runSeoChecks, type SeoCheckResult } from "@/modules/wordpress/seo-check";
+import { runSeoChecks } from "@/modules/wordpress/seo/checks";
+import { resolveSeoProfile } from "@/modules/wordpress/seo/registry";
+import type { SeoCheckResult, SeoProfile } from "@/modules/wordpress/seo/types";
 
 // Checks whose fixes touch images (alt text, "add some images") are deliberately excluded
 // here since images are handled separately via upload_image/set_featured_image, not this
 // text-content SEO pass - see the create_post/update_post tool descriptions.
-const IMAGE_RELATED_CHECK_IDS = new Set(["images", "keyphrase-in-image-alt"]);
+const IMAGE_RELATED_CHECK_IDS = new Set(["neutral:images", "yoast:keyphrase-in-image-alt"]);
 
 // runSeoChecks() only informs the LLM if it happens to read the returned JSON. Surfacing
 // the "bad" checks as an explicit instruction (with the postId to act on) makes it far
@@ -49,7 +51,7 @@ const articleWritingGuidance = [
   "Use first person only for experiences, observations, experiments, or case studies supplied by the user. Never invent personal anecdotes, conversations, quotations, results, or metrics. Ask for missing personal source material before drafting a personal narrative; otherwise use a clear explanatory approach when appropriate to the brief. Do not force every sentence into first person.",
   "Open directly with a concrete observation, supported surprising fact, or a real story from the supplied material. Skip introductions that merely announce the topic.",
   "Make each section advance the article and connect ideas so readers understand their progression. Use descriptive headings where they help navigation and vary sentence and paragraph length naturally. Avoid repetitive heading-and-definition patterns unless the reader needs a reference format. Explain mechanisms, consequences, and limitations through concrete examples; clearly label hypothetical examples and never present them as the author's experience.",
-  "Before submitting drafted or substantially rewritten body content, make a final Yoast-readability pass. Avoid three consecutive sentences beginning with the same word, vary sentence openings and length, and prefer active voice where it is as clear and accurate as passive voice; aim to keep passive constructions at or below Yoast's 10% guideline. Use transition words and short paragraphs where they improve the reader's flow. Do not distort technical meaning, force unnatural transitions, or rewrite a sentence solely to chase a plugin score.",
+  "Before submitting drafted or substantially rewritten body content, make a final readability pass following the generationGuidance returned by get_seo_profile/create_post/update_post - it includes provider-neutral readability guidance always, plus provider-specific guidance (e.g. Yoast's passive-voice threshold) only when that provider is confirmed on the connected site.",
   "Choose presentation elements for a purpose: prose for reasoning and narrative, lists for parallel points, numbered steps for procedures, tables for meaningful comparisons, and code for implementation. Include relevant images, diagrams, or charts when they explain something or provide evidence and usable assets are available; never invent image URLs or imply an uncreated visual exists. When a real image is available (fetchable by URL, or as raw image data), call upload_image with the post's postId to upload it to this site's media library and get back a source_url, then use that URL as the src of an <img> tag - do not reference an external image URL directly in contentHtml. Use descriptive alt text and captions or attribution where needed. Provide clean semantic HTML with a logical heading hierarchy and leave typography and page layout to the site theme.",
   "Cut filler, heavy adverbs, robotic transitions, and AI cliches such as 'In today's fast-paced digital world', 'Imagine a world where', 'delve', and 'In conclusion'. End when the argument is complete, with a specific implication, open question, or next step only when it follows naturally. Avoid repetitive summaries, preachy conclusions, and motivational lessons.",
   "For a new article, offer three distinct, accurate headline options in the conversation, using curiosity or a what-I-learned framing only when supported. Send only the selected title as title and the full article body as contentHtml; keep headline alternatives and editorial commentary out of the post. Use a title already selected by the user without repeating this step.",
@@ -224,7 +226,9 @@ function resolveConnection(ctx: ServerContext, siteId?: number): ResolvedConnect
   return { ok: true, connection: selectedConnection };
 }
 
-type ResolvedClient = { ok: true; client: WordPressClient } | { ok: false; elicit: InputRequiredResult };
+type ResolvedClient =
+  | { ok: true; client: WordPressClient; connection: WordPressConnection }
+  | { ok: false; elicit: InputRequiredResult };
 
 function clientFromContext(ctx: ServerContext, siteId?: number): ResolvedClient {
   const resolved = resolveConnection(ctx, siteId);
@@ -234,7 +238,15 @@ function clientFromContext(ctx: ServerContext, siteId?: number): ResolvedClient 
     username: resolved.connection.username,
     appPassword: resolved.connection.appPassword,
   };
-  return { ok: true, client: createWordPressClient(credentials) };
+  return { ok: true, client: createWordPressClient(credentials), connection: resolved.connection };
+}
+
+// Single probe per tool call, shared between the write-gating decision (client.ts) and
+// the check/guidance output - resolveSeoProfile itself is synchronous and pure, so only
+// the probe is async.
+async function resolveSeoProfileFor(client: WordPressClient, connection: WordPressConnection): Promise<SeoProfile> {
+  const context = await client.probeSeoEvidence();
+  return resolveSeoProfile(context, connection.seoProviderPreference ?? "auto");
 }
 
 const siteIdSchema = z
@@ -402,7 +414,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Create Blog Post",
       description:
-        "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. A new category receives a description, focus keyphrase, SEO title, and meta description by default; use categorySeo for topic-specific copy. Existing categories are never changed implicitly—use update_category_seo for those. Category Yoast fields require the Epexta category SEO REST bridge documented in README.md; a warning means the category description was saved but Yoast data was not. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
+        "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. A new category receives a description, focus keyphrase, SEO title, and meta description by default; use categorySeo for topic-specific copy. Existing categories are never changed implicitly—use update_category_seo for those. Category Yoast fields require the Epexta category SEO REST bridge documented in README.md; a warning means the category description was saved but Yoast data was not. SEO title/description/focus keyphrase are only written to the site's SEO plugin when get_seo_profile (also resolved automatically and returned as seoProfile here) confirms which plugin is active; call get_seo_profile first if you need to know in advance. Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
         "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. When an image is appropriate, call upload_image (after this post exists) to host it on this site and use its returned source_url in an <img> tag with accurate descriptive alt text. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via upload_image/set_featured_image. " +
         articleWritingGuidance,
       inputSchema: z.object({
@@ -446,7 +458,7 @@ const rawHandler = createMcpHandler(
                 .string()
                 .optional()
                 .describe(
-                  "Yoast focus keyphrase for this post. Drives Yoast's on-page SEO analysis (keyphrase density, and presence in the title, introduction, subheading, meta description, and slug). Should be a short phrase (2-4 words) a reader would actually search for, and should not repeat a keyphrase already used on another post on this site. SEO meta fields only take effect if the target WordPress site has those keys registered for REST access; check the returned warnings array for a note if they were dropped."
+                  "Focus keyphrase for this post, used for on-page SEO analysis (keyphrase density, and presence in the title, introduction, subheading, meta description, and slug) and, when a supported SEO plugin is confirmed active, written to that plugin's fields. Should be a short phrase (2-4 words) a reader would actually search for, and should not repeat a keyphrase already used on another post on this site."
                 ),
               slug: z
                 .string()
@@ -458,10 +470,11 @@ const rawHandler = createMcpHandler(
       try {
         const resolved = clientFromContext(ctx, siteId);
         if (!resolved.ok) return resolved.elicit;
-        const { post, warnings } = await resolved.client.createPost(input);
-        const seoCheck = runSeoChecks(input);
+        const seoProfile = await resolveSeoProfileFor(resolved.client, resolved.connection);
+        const { post, warnings } = await resolved.client.createPost(input, seoProfile);
+        const seoCheck = runSeoChecks(input, seoProfile);
         const seoFollowUp = seoFollowUpNote(seoCheck, post.id);
-        return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
+        return textResult({ post, warnings, seoCheck, seoProfile, ...(seoFollowUp ? { seoFollowUp } : {}) });
       } catch (e) {
         return errorResult(e);
       }
@@ -490,7 +503,7 @@ const rawHandler = createMcpHandler(
               focusKeyphrase: z
                 .string()
                 .optional()
-                .describe("Yoast focus keyphrase for this post. Drives Yoast's on-page SEO analysis."),
+                .describe("Focus keyphrase for this post. Drives the on-page SEO analysis."),
               slug: z.string().optional(),
             }),
     },
@@ -498,14 +511,15 @@ const rawHandler = createMcpHandler(
       try {
         const resolved = clientFromContext(ctx, siteId);
         if (!resolved.ok) return resolved.elicit;
-        const { post, warnings } = await resolved.client.updatePost(postId, fields);
-        const seoCheck = runSeoChecks(fields);
+        const seoProfile = await resolveSeoProfileFor(resolved.client, resolved.connection);
+        const { post, warnings } = await resolved.client.updatePost(postId, fields, seoProfile);
+        const seoCheck = runSeoChecks(fields, seoProfile);
         // Only nag about SEO when this call actually touched a keyphrase-relevant field -
         // otherwise a metadata-only edit (e.g. just status or tags) would falsely report
         // "no focus keyphrase" every time, since fields here has no prior post state to
         // compare against.
         const seoFollowUp = fields.focusKeyphrase !== undefined ? seoFollowUpNote(seoCheck, postId) : undefined;
-        return textResult({ post, warnings, seoCheck, ...(seoFollowUp ? { seoFollowUp } : {}) });
+        return textResult({ post, warnings, seoCheck, seoProfile, ...(seoFollowUp ? { seoFollowUp } : {}) });
       } catch (e) {
         return errorResult(e);
       }
@@ -563,8 +577,9 @@ const rawHandler = createMcpHandler(
     {
       title: "Check SEO",
       description:
-        "Run an on-page SEO analysis (equivalent to Yoast SEO's core checks: keyphrase presence in title, introduction, subheadings, meta description, and slug; keyphrase density; content length; links; image alt text) against draft content before publishing. Use this before create_post or update_post to catch problems while they're still easy to fix. This tool does not calculate Yoast's separate Readability score, so its result does not replace the final readability pass required when drafting or rewriting content.",
+        "Run an on-page SEO analysis against draft content before publishing, scoped to the connected site's confirmed SEO plugin (provider-neutral checks - content length, links, images - always run; plugin-specific checks such as keyphrase placement only run once get_seo_profile confirms that plugin on this site). Use this before create_post or update_post to catch problems while they're still easy to fix. This does not replace the final readability pass described in generationGuidance when drafting or rewriting content.",
       inputSchema: z.object({
+              siteId: siteIdSchema,
               title: z.string().optional(),
               contentHtml: z.string().optional().describe("Post body HTML to analyze."),
               focusKeyphrase: z.string().optional(),
@@ -573,9 +588,31 @@ const rawHandler = createMcpHandler(
               slug: z.string().optional(),
             }),
     },
-    async (input) => {
+    async ({ siteId, ...input }, ctx) => {
       try {
-        return textResult(runSeoChecks(input));
+        const resolved = clientFromContext(ctx, siteId);
+        if (!resolved.ok) return resolved.elicit;
+        const seoProfile = await resolveSeoProfileFor(resolved.client, resolved.connection);
+        return textResult({ ...runSeoChecks(input, seoProfile), seoProfile });
+      } catch (e) {
+        return errorResult(e);
+      }
+    }
+  );
+
+  registerGatedTool(
+    "get_seo_profile",
+    {
+      title: "Get SEO Provider Profile",
+      description:
+        "Identify which SEO plugin (if any) this connected WordPress site uses, what Epexta can safely read/write for it, and the generation guidance to follow before drafting. create_post, update_post, and check_seo also resolve this automatically and return it in their response as seoProfile, so calling this first is a head start, not a requirement.",
+      inputSchema: z.object({ siteId: siteIdSchema }),
+    },
+    async ({ siteId }, ctx) => {
+      try {
+        const resolved = clientFromContext(ctx, siteId);
+        if (!resolved.ok) return resolved.elicit;
+        return textResult(await resolveSeoProfileFor(resolved.client, resolved.connection));
       } catch (e) {
         return errorResult(e);
       }
@@ -632,11 +669,14 @@ const rawHandler = createMcpHandler(
   {
     instructions:
       "siteId (from list_sites) selects which connected WordPress site a tool acts on - it's shared " +
-      "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, " +
-      "upload_image, and set_featured_image, so a value obtained from list_sites or list_posts can be " +
-      "reused across calls in the same session. Call list_categories and list_tags before " +
-      "create_post/update_post to see what already exists on that site, since names are matched " +
-      "case-sensitively. To put a real image inside a post's body, call upload_image with that post's " +
+      "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, check_seo, " +
+      "get_seo_profile, upload_image, and set_featured_image, so a value obtained from list_sites or " +
+      "list_posts can be reused across calls in the same session. Call list_categories and list_tags " +
+      "before create_post/update_post to see what already exists on that site, since names are matched " +
+      "case-sensitively. create_post and update_post resolve and return the site's SEO provider profile " +
+      "as seoProfile (also available on demand via get_seo_profile); its generationGuidance should inform " +
+      "drafting, and its checks only include plugin-specific rules once that plugin is confirmed active. " +
+      "To put a real image inside a post's body, call upload_image with that post's " +
       "postId and use the returned media.source_url as an <img> src; upload_image never changes the " +
       "featured image, so use set_featured_image separately for that.",
   }

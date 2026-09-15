@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getPayloadClient } from "../../lib/payload";
 import { createOrReplaceMapping as createOrReplaceSearchConsoleMapping } from "../google-search-console/mappings";
 import { createOrReplaceMapping as createOrReplaceAnalyticsMapping } from "../google-analytics/mappings";
-import { deleteWordPressConnection, WordPressConnectionInUseError } from "./organisation";
+import { deleteWordPressConnection, getWordPressConnection, WordPressConnectionInUseError } from "./organisation";
 
 // Regression test for a gap found alongside the organisation-deletion cascade bug (see
 // lib/organisation-deletion-cascade.test.ts): the cascade-delete migration made
@@ -126,6 +126,73 @@ describe("deleteWordPressConnection blocks deletion when Google mappings referen
     ).rejects.toBeTruthy();
 
     await payload.delete({ collection: "organisations", id: organisationId, overrideAccess: true }).catch(() => {});
+    await payload.delete({ collection: "users", id: adminUserId, overrideAccess: true }).catch(() => {});
+  });
+});
+
+// New connections have never been probed for an SEO provider - the collection default
+// (seoProviderPreference: "auto") must never be conflated with a confirmed detection.
+describe("wordpress-connections SEO provider fields", () => {
+  async function makeFixtures(suffix: string) {
+    const payload = await getPayloadClient();
+    const adminUser = await payload.create({
+      collection: "users",
+      data: { email: `wp-seo-admin-${suffix}@example.com`, password: "test-password-123", role: "customer" },
+    });
+    const adminUserId = String(adminUser.id);
+
+    const org = await payload.create({
+      collection: "organisations",
+      data: { name: `wp-seo-org-${suffix}`, members: [{ user: Number(adminUserId), role: "admin" }] },
+      overrideAccess: true,
+    });
+    const organisationId = String(org.id);
+
+    const otherOrg = await payload.create({
+      collection: "organisations",
+      data: { name: `wp-seo-other-org-${suffix}`, members: [] },
+      overrideAccess: true,
+    });
+    const otherOrganisationId = String(otherOrg.id);
+
+    const wpConnection = await payload.create({
+      collection: "wordpress-connections",
+      data: {
+        organisation: Number(organisationId),
+        siteUrl: `https://wp-seo-${suffix}.example.com`,
+        username: "admin",
+        appPassword: "fake app password",
+      },
+      overrideAccess: true,
+    });
+    const connectionId = String(wpConnection.id);
+
+    return { payload, adminUserId, organisationId, otherOrganisationId, connectionId };
+  }
+
+  it("defaults a new connection to auto preference and no asserted profile state", async () => {
+    const suffix = randomUUID();
+    const { payload, adminUserId, organisationId, otherOrganisationId, connectionId } = await makeFixtures(suffix);
+
+    const connection = await getWordPressConnection(organisationId, connectionId);
+    expect(connection?.seoProviderPreference).toBe("auto");
+    expect(connection?.seoProfileState).toBeNull();
+    expect(connection?.seoProviderObserved).toBeNull();
+
+    await payload.delete({ collection: "organisations", id: organisationId, overrideAccess: true }).catch(() => {});
+    await payload.delete({ collection: "organisations", id: otherOrganisationId, overrideAccess: true }).catch(() => {});
+    await payload.delete({ collection: "users", id: adminUserId, overrideAccess: true }).catch(() => {});
+  });
+
+  it("does not let one organisation read another organisation's connection SEO fields", async () => {
+    const suffix = randomUUID();
+    const { payload, adminUserId, organisationId, otherOrganisationId, connectionId } = await makeFixtures(suffix);
+
+    const crossOrgLookup = await getWordPressConnection(otherOrganisationId, connectionId);
+    expect(crossOrgLookup).toBeNull();
+
+    await payload.delete({ collection: "organisations", id: organisationId, overrideAccess: true }).catch(() => {});
+    await payload.delete({ collection: "organisations", id: otherOrganisationId, overrideAccess: true }).catch(() => {});
     await payload.delete({ collection: "users", id: adminUserId, overrideAccess: true }).catch(() => {});
   });
 });

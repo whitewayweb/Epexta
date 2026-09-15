@@ -37,13 +37,8 @@ export default async function GoogleSearchConsoleConnectPage() {
     listMappingsForOrganisation(organisation.organisationId),
   ]);
 
-  // Application Passwords never leave the server - only pull the fields this page displays.
-  const sites = wordpressConnections.map(({ connectionId, label, siteUrl, username }) => ({
-    connectionId,
-    label,
-    siteUrl,
-    username,
-  }));
+  // Application Passwords never leave the server - strip just that field.
+  const sites = wordpressConnections.map(({ appPassword: _appPassword, ...rest }) => rest);
   const mappedConnectionIds = new Set(mappings.map((m) => m.wordpressConnectionId));
 
   return (

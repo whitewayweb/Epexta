@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { createWordPressClient } from "./client";
+import type { SeoProfile } from "./seo/types";
 
 const credentials = {
   siteUrl: "https://example.com",
@@ -92,6 +93,81 @@ describe("WordPress category SEO", () => {
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       epexta_seo: { focusKeyphrase: "AI planning", seoTitle: "AI planning: a practical guide" },
     });
+  });
+});
+
+function seoProfile(overrides: Partial<SeoProfile> = {}): SeoProfile {
+  return {
+    providerId: null,
+    displayName: "Unknown",
+    state: "unknown",
+    capabilities: { metadataWrite: "unknown", categoryWrite: "unknown" },
+    generationGuidance: [],
+    evidence: [],
+    observedAt: null,
+    error: null,
+    ...overrides,
+  };
+}
+
+describe("WordPress SEO metadata write gating", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("does not attach meta when no SEO profile is passed", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createWordPressClient(credentials).createPost({
+      title: "A post",
+      contentHtml: "<p>Content</p>",
+      status: "draft",
+      seoTitle: "An SEO title",
+      focusKeyphrase: "widgets",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.meta).toBeUndefined();
+  });
+
+  it("does not attach meta when the profile state is not confirmed", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createWordPressClient(credentials).createPost(
+      { title: "A post", contentHtml: "<p>Content</p>", status: "draft", seoTitle: "An SEO title" },
+      seoProfile({ state: "unavailable" })
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.meta).toBeUndefined();
+  });
+
+  it("attaches and verifies Yoast meta when the profile confirms Yoast", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      jsonResponse({ id: 99, meta: { _yoast_wpseo_title: "An SEO title" } })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createWordPressClient(credentials).createPost(
+      { title: "A post", contentHtml: "<p>Content</p>", status: "draft", seoTitle: "An SEO title" },
+      seoProfile({ state: "confirmed", providerId: "yoast" })
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.meta).toEqual({ _yoast_wpseo_title: "An SEO title" });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("warns when confirmed Yoast meta does not round-trip", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await createWordPressClient(credentials).createPost(
+      { title: "A post", contentHtml: "<p>Content</p>", status: "draft", seoTitle: "An SEO title" },
+      seoProfile({ state: "confirmed", providerId: "yoast" })
+    );
+
+    expect(result.warnings).toContainEqual(expect.stringContaining("_yoast_wpseo_title"));
   });
 });
 

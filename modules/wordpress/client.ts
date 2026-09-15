@@ -1,4 +1,6 @@
 import sharp from "sharp";
+import { yoastAdapter } from "./seo/providers/yoast";
+import type { SeoProbeContext, SeoProfile } from "./seo/types";
 
 // Describes a failure from the target WordPress site itself (bad credentials, invalid
 // post ID, unreachable image URL, etc.) - safe to relay to a calling LLM verbatim,
@@ -273,38 +275,37 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     return { postId: post.id, canonicalLink: post.link, status: post.status, modifiedAt: post.modified };
   }
 
-  const YOAST_META_KEYS: Record<"seoTitle" | "seoDescription" | "focusKeyphrase", string> = {
-    seoTitle: "_yoast_wpseo_title",
-    seoDescription: "_yoast_wpseo_metadesc",
-    focusKeyphrase: "_yoast_wpseo_focuskw",
-  };
+  // Read-only evidence for the SEO provider registry (modules/wordpress/seo/registry.ts)
+  // to resolve a profile from. Safe to call against every connected site: it only
+  // inspects WordPress core's own self-advertised REST index and one sampled post's
+  // documented fields, never a plugin list.
+  async function probeSeoEvidence(): Promise<SeoProbeContext> {
+    try {
+      const index = await wpFetch<{ namespaces?: string[]; routes?: Record<string, unknown> }>("/");
+      const restIndexNamespaces = index.namespaces ?? [];
+      const restIndexRoutes = Object.keys(index.routes ?? {});
 
-  function buildYoastMeta(fields: Pick<Partial<CreatePostInput>, "seoTitle" | "seoDescription" | "focusKeyphrase">) {
-    const meta: Record<string, string> = {};
-    if (fields.seoTitle) meta[YOAST_META_KEYS.seoTitle] = fields.seoTitle;
-    if (fields.seoDescription) meta[YOAST_META_KEYS.seoDescription] = fields.seoDescription;
-    if (fields.focusKeyphrase) meta[YOAST_META_KEYS.focusKeyphrase] = fields.focusKeyphrase;
-    return meta;
-  }
-
-  // WordPress silently drops any meta key that isn't registered with
-  // register_post_meta(..., ['show_in_rest' => true]) on the site itself - the
-  // request still succeeds, so this is the only way to detect it didn't take.
-  function checkYoastMetaPersisted(
-    requestedMeta: Record<string, string>,
-    savedPost: { meta?: Record<string, unknown> }
-  ): string[] {
-    const warnings: string[] = [];
-    const savedMeta = savedPost.meta ?? {};
-    for (const [key, value] of Object.entries(requestedMeta)) {
-      if (savedMeta[key] !== value) {
-        warnings.push(
-          `WordPress did not save the "${key}" meta field (Yoast SEO data). The target site needs those keys ` +
-            `registered for REST access via register_post_meta() - see README.md for a ready-to-use mu-plugin snippet.`
+      let samplePost: SeoProbeContext["samplePost"];
+      try {
+        const posts = await wpFetch<Array<{ id: number; yoast_head_json?: unknown }>>(
+          "/wp/v2/posts?per_page=1&_fields=id,yoast_head_json"
         );
+        if (posts[0]) {
+          samplePost = { id: posts[0].id, fields: { yoast_head_json: posts[0].yoast_head_json ?? null } };
+        }
+      } catch {
+        // A sampling miss (e.g. zero posts) just means less evidence, not an unavailable site.
       }
+
+      return { restIndexNamespaces, restIndexRoutes, samplePost, probedAt: new Date().toISOString() };
+    } catch (err) {
+      return {
+        restIndexNamespaces: [],
+        restIndexRoutes: [],
+        probedAt: new Date().toISOString(),
+        probeError: err instanceof Error ? err.message : String(err),
+      };
     }
-    return warnings;
   }
 
   // A category/tag that fails to resolve (e.g. no permission to create a new term) must
@@ -317,7 +318,23 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     }
   }
 
-  async function createPost(input: CreatePostInput) {
+  // Only attempts a provider metadata write when the resolved profile confirms that
+  // provider - fail-closed per the SEO provider registry plan, rather than guessing at
+  // private meta keys for a plugin that was never actually confirmed as active.
+  function buildProviderWrite(
+    seoProfile: SeoProfile | undefined,
+    input: Pick<Partial<CreatePostInput>, "seoTitle" | "seoDescription" | "focusKeyphrase">
+  ) {
+    if (!seoProfile || seoProfile.state !== "confirmed" || seoProfile.providerId !== "yoast") return null;
+    return yoastAdapter.buildWrite!(input, seoProfile.capabilities);
+  }
+
+  function verifyProviderWrite(write: ReturnType<typeof buildProviderWrite>, savedPost: { meta?: Record<string, unknown> }): string[] {
+    if (!write) return [];
+    return yoastAdapter.verifyWrite!(write, savedPost).warnings;
+  }
+
+  async function createPost(input: CreatePostInput, seoProfile?: SeoProfile) {
     const [categoryResult, tagResult] = await Promise.all([
       input.categoryNames?.length ? resolveCategoryIds(input.categoryNames, input.categorySeo) : Promise.resolve(undefined),
       input.tagNames?.length ? resolveTagIds(input.tagNames) : Promise.resolve(undefined),
@@ -333,8 +350,8 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     if (input.slug) body.slug = input.slug;
     if (categoryResult?.ids.length) body.categories = categoryResult.ids;
     if (tagResult?.ids.length) body.tags = tagResult.ids;
-    const yoastMeta = buildYoastMeta(input);
-    if (Object.keys(yoastMeta).length > 0) body.meta = yoastMeta;
+    const write = buildProviderWrite(seoProfile, input);
+    if (write) body.meta = write.meta;
 
     const post = await wpFetch<{ id: number; meta?: Record<string, unknown> }>(`/wp/v2/posts`, {
       method: "POST",
@@ -344,14 +361,12 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
     const warnings: string[] = [];
     warnings.push(...(categoryResult?.seoWarnings ?? []));
-    if (Object.keys(yoastMeta).length > 0) {
-      warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
-    }
+    warnings.push(...verifyProviderWrite(write, post));
 
     return { post, warnings };
   }
 
-  async function updatePost(postId: number, fields: Partial<CreatePostInput>) {
+  async function updatePost(postId: number, fields: Partial<CreatePostInput>, seoProfile?: SeoProfile) {
     const [categoryResult, tagResult] = await Promise.all([
       fields.categoryNames?.length ? resolveCategoryIds(fields.categoryNames, fields.categorySeo) : Promise.resolve(undefined),
       fields.tagNames?.length ? resolveTagIds(fields.tagNames) : Promise.resolve(undefined),
@@ -366,8 +381,8 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     if (fields.slug) body.slug = fields.slug;
     if (categoryResult?.ids.length) body.categories = categoryResult.ids;
     if (tagResult?.ids.length) body.tags = tagResult.ids;
-    const yoastMeta = buildYoastMeta(fields);
-    if (Object.keys(yoastMeta).length > 0) body.meta = yoastMeta;
+    const write = buildProviderWrite(seoProfile, fields);
+    if (write) body.meta = write.meta;
 
     const post = await wpFetch<{ id: number; meta?: Record<string, unknown> }>(`/wp/v2/posts/${postId}`, {
       method: "POST",
@@ -377,9 +392,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
     const warnings: string[] = [];
     warnings.push(...(categoryResult?.seoWarnings ?? []));
-    if (Object.keys(yoastMeta).length > 0) {
-      warnings.push(...checkYoastMetaPersisted(yoastMeta, post));
-    }
+    warnings.push(...verifyProviderWrite(write, post));
 
     return { post, warnings };
   }
@@ -441,6 +454,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     listTags,
     getPostTitle,
     getPostForPerformance,
+    probeSeoEvidence,
     createPost,
     updatePost,
     publishPost,

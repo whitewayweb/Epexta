@@ -9,6 +9,7 @@ import * as migration_20260914_105016_google_site_hub_reporting from './20260914
 import * as migration_20260914_120000_cascade_delete_reporting_fks from './20260914_120000_cascade_delete_reporting_fks';
 import * as migration_20260914_223935_add_site_performance_report_type from './20260914_223935_add_site_performance_report_type';
 import * as migration_20260914_224504_remove_compare_periods_report_type from './20260914_224504_remove_compare_periods_report_type';
+import * as migration_20260915_181406_add_wordpress_seo_provider_fields from './20260915_181406_add_wordpress_seo_provider_fields';
 
 export const migrations = [
   {
@@ -64,6 +65,11 @@ export const migrations = [
   {
     up: migration_20260914_224504_remove_compare_periods_report_type.up,
     down: migration_20260914_224504_remove_compare_periods_report_type.down,
-    name: '20260914_224504_remove_compare_periods_report_type'
+    name: '20260914_224504_remove_compare_periods_report_type',
+  },
+  {
+    up: migration_20260915_181406_add_wordpress_seo_provider_fields.up,
+    down: migration_20260915_181406_add_wordpress_seo_provider_fields.down,
+    name: '20260915_181406_add_wordpress_seo_provider_fields'
   },
 ];
