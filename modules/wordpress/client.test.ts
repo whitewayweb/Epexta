@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 import { createWordPressClient } from "./client";
 
 const credentials = {
@@ -91,5 +92,37 @@ describe("WordPress category SEO", () => {
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({
       epexta_seo: { focusKeyphrase: "AI planning", seoTitle: "AI planning: a practical guide" },
     });
+  });
+});
+
+describe("WordPress media uploads", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("converts source images to JPEG before uploading", async () => {
+    const sourcePng = await sharp({
+      create: { width: 1, height: 1, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .png()
+      .toBuffer();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(sourcePng, { headers: { "Content-Type": "image/png" } }))
+      .mockResolvedValueOnce(jsonResponse({ id: 55, source_url: "https://example.com/image.jpg" }))
+      .mockResolvedValueOnce(jsonResponse({ id: 55, source_url: "https://example.com/image.jpg" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createWordPressClient(credentials).uploadMediaFromUrl(
+      "https://images.example/generated.png",
+      "featured-image.png",
+      "A post title"
+    );
+
+    const uploadRequest = fetchMock.mock.calls[1];
+    expect(uploadRequest[0]).toBe("https://example.com/wp-json/wp/v2/media");
+    expect(uploadRequest[1].headers).toMatchObject({
+      "Content-Type": "image/jpeg",
+      "Content-Disposition": 'attachment; filename="featured-image.jpg"',
+    });
+    expect(Buffer.from(uploadRequest[1].body).subarray(0, 3)).toEqual(Buffer.from([0xff, 0xd8, 0xff]));
   });
 });

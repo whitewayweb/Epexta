@@ -1,3 +1,5 @@
+import sharp from "sharp";
+
 // Describes a failure from the target WordPress site itself (bad credentials, invalid
 // post ID, unreachable image URL, etc.) - safe to relay to a calling LLM verbatim,
 // since it only ever contains that site's own response, never our own internals.
@@ -73,6 +75,25 @@ export interface WordPressCredentials {
   siteUrl: string;
   username: string;
   appPassword: string;
+}
+
+const JPEG_MIME_TYPE = "image/jpeg";
+
+function jpegFilename(filename: string) {
+  const basename = filename.trim().replace(/\.[^.]+$/, "") || "featured-image";
+  return `${basename}.jpg`;
+}
+
+/**
+ * WordPress images generated through this module are stored as JPEGs regardless
+ * of the source format. Flattening preserves transparent-source images against
+ * white because JPEG has no alpha channel.
+ */
+export async function convertToJpeg(image: Buffer) {
+  return sharp(image)
+    .flatten({ background: "#ffffff" })
+    .jpeg({ quality: 90, mozjpeg: true })
+    .toBuffer();
 }
 
 export function createWordPressClient(credentials: WordPressCredentials) {
@@ -389,14 +410,18 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     if (!imgRes.ok) {
       throw new WordPressApiError(`Could not fetch image from ${imageUrl}: ${imgRes.status}`);
     }
-    const contentType = imgRes.headers.get("content-type") ?? "image/png";
     const buffer = Buffer.from(await imgRes.arrayBuffer());
-    return uploadMediaBuffer(buffer, filename, contentType, postTitle);
+    return uploadMediaBuffer(await convertToJpeg(buffer), jpegFilename(filename), JPEG_MIME_TYPE, postTitle);
   }
 
-  function uploadMediaFromBase64(base64Data: string, filename: string, mimeType: string, postTitle: string) {
+  async function uploadMediaFromBase64(
+    base64Data: string,
+    filename: string,
+    _sourceMimeType: string | undefined,
+    postTitle: string
+  ) {
     const buffer = Buffer.from(base64Data, "base64");
-    return uploadMediaBuffer(buffer, filename, mimeType, postTitle);
+    return uploadMediaBuffer(await convertToJpeg(buffer), jpegFilename(filename), JPEG_MIME_TYPE, postTitle);
   }
 
   function setFeaturedImage(postId: number, mediaId: number) {

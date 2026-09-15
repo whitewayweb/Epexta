@@ -551,7 +551,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Set Featured Image",
       description:
-        "Upload an image and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 with mimeType (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
+        "Convert an image to JPEG, upload it, and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
       inputSchema: z.object({
               siteId: siteIdSchema,
               postId: z.number().int(),
@@ -560,8 +560,8 @@ const rawHandler = createMcpHandler(
               mimeType: z
                 .string()
                 .optional()
-                .describe("Required if imageBase64 is used, e.g. image/png"),
-              filename: z.string().default("featured-image.png"),
+                .describe("Source MIME type if known. The uploaded WordPress media is always image/jpeg."),
+              filename: z.string().default("featured-image.jpg"),
             }),
     },
     async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename }, ctx) => {
@@ -582,7 +582,7 @@ const rawHandler = createMcpHandler(
           : await client.uploadMediaFromBase64(
               imageBase64!,
               filename,
-              mimeType ?? "image/png",
+              mimeType,
               postTitle
             );
 
