@@ -16,8 +16,8 @@ import { listWordPressConnections, type WordPressConnection } from "@/modules/wo
 import { runSeoChecks, type SeoCheckResult } from "@/modules/wordpress/seo-check";
 
 // Checks whose fixes touch images (alt text, "add some images") are deliberately excluded
-// here since images are handled separately via set_featured_image, not this text-content
-// SEO pass - see the create_post/update_post tool descriptions.
+// here since images are handled separately via upload_image/set_featured_image, not this
+// text-content SEO pass - see the create_post/update_post tool descriptions.
 const IMAGE_RELATED_CHECK_IDS = new Set(["images", "keyphrase-in-image-alt"]);
 
 // runSeoChecks() only informs the LLM if it happens to read the returned JSON. Surfacing
@@ -49,7 +49,8 @@ const articleWritingGuidance = [
   "Use first person only for experiences, observations, experiments, or case studies supplied by the user. Never invent personal anecdotes, conversations, quotations, results, or metrics. Ask for missing personal source material before drafting a personal narrative; otherwise use a clear explanatory approach when appropriate to the brief. Do not force every sentence into first person.",
   "Open directly with a concrete observation, supported surprising fact, or a real story from the supplied material. Skip introductions that merely announce the topic.",
   "Make each section advance the article and connect ideas so readers understand their progression. Use descriptive headings where they help navigation and vary sentence and paragraph length naturally. Avoid repetitive heading-and-definition patterns unless the reader needs a reference format. Explain mechanisms, consequences, and limitations through concrete examples; clearly label hypothetical examples and never present them as the author's experience.",
-  "Choose presentation elements for a purpose: prose for reasoning and narrative, lists for parallel points, numbered steps for procedures, tables for meaningful comparisons, and code for implementation. Include relevant images, diagrams, or charts when they explain something or provide evidence and usable assets are available; never invent image URLs or imply an uncreated visual exists. Use descriptive alt text and captions or attribution where needed. Provide clean semantic HTML with a logical heading hierarchy and leave typography and page layout to the site theme.",
+  "Before submitting drafted or substantially rewritten body content, make a final Yoast-readability pass. Avoid three consecutive sentences beginning with the same word, vary sentence openings and length, and prefer active voice where it is as clear and accurate as passive voice; aim to keep passive constructions at or below Yoast's 10% guideline. Use transition words and short paragraphs where they improve the reader's flow. Do not distort technical meaning, force unnatural transitions, or rewrite a sentence solely to chase a plugin score.",
+  "Choose presentation elements for a purpose: prose for reasoning and narrative, lists for parallel points, numbered steps for procedures, tables for meaningful comparisons, and code for implementation. Include relevant images, diagrams, or charts when they explain something or provide evidence and usable assets are available; never invent image URLs or imply an uncreated visual exists. When a real image is available (fetchable by URL, or as raw image data), call upload_image with the post's postId to upload it to this site's media library and get back a source_url, then use that URL as the src of an <img> tag - do not reference an external image URL directly in contentHtml. Use descriptive alt text and captions or attribution where needed. Provide clean semantic HTML with a logical heading hierarchy and leave typography and page layout to the site theme.",
   "Cut filler, heavy adverbs, robotic transitions, and AI cliches such as 'In today's fast-paced digital world', 'Imagine a world where', 'delve', and 'In conclusion'. End when the argument is complete, with a specific implication, open question, or next step only when it follows naturally. Avoid repetitive summaries, preachy conclusions, and motivational lessons.",
   "For a new article, offer three distinct, accurate headline options in the conversation, using curiosity or a what-I-learned framing only when supported. Send only the selected title as title and the full article body as contentHtml; keep headline alternatives and editorial commentary out of the post. Use a title already selected by the user without repeating this step.",
   "Before submitting, review factual support, logical flow, missing context, repetition, and alignment between the title and body. Ensure the structure fits this topic, the article delivers its promised value, and the author can truthfully publish it under their name. Remove material that adds length without understanding. Use SEO naturally without sacrificing accuracy or readability, and follow the user's requested publication status.",
@@ -246,6 +247,41 @@ const siteIdSchema = z
       "ask the user to choose."
   );
 
+function imageUploadInputSchema(defaultFilename: string) {
+  return z.object({
+    siteId: siteIdSchema,
+    postId: z.number().int(),
+    imageUrl: z.string().url().optional(),
+    imageBase64: z.string().optional(),
+    mimeType: z
+      .string()
+      .optional()
+      .describe("Source MIME type if known. The uploaded WordPress media is always image/jpeg."),
+    filename: z.string().default(defaultFilename),
+  });
+}
+
+// Shared by set_featured_image and upload_image: both convert an arbitrary source image
+// to JPEG and upload it to the post's media library, differing only in what happens next
+// (setFeaturedImage vs. just returning the media for use in contentHtml).
+async function uploadImageToMediaLibrary(
+  client: WordPressClient,
+  postId: number,
+  { imageUrl, imageBase64, mimeType, filename }: { imageUrl?: string; imageBase64?: string; mimeType?: string; filename: string }
+) {
+  if (!imageUrl && !imageBase64) {
+    throw new ToolError("Provide either imageUrl or imageBase64.");
+  }
+  if (imageUrl && imageBase64) {
+    throw new ToolError("Provide only one of imageUrl or imageBase64, not both.");
+  }
+
+  const postTitle = await client.getPostTitle(postId);
+  return imageUrl
+    ? client.uploadMediaFromUrl(imageUrl, filename, postTitle)
+    : client.uploadMediaFromBase64(imageBase64!, filename, mimeType, postTitle);
+}
+
 const categorySeoSchema = z.object({
   description: z.string().optional().describe("Category archive description. Defaults to the SEO description."),
   seoTitle: z.string().optional().describe("Yoast SEO title. Defaults to a title beginning with the category name."),
@@ -367,7 +403,7 @@ const rawHandler = createMcpHandler(
       title: "Create Blog Post",
       description:
         "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. A new category receives a description, focus keyphrase, SEO title, and meta description by default; use categorySeo for topic-specific copy. Existing categories are never changed implicitly—use update_category_seo for those. Category Yoast fields require the Epexta category SEO REST bridge documented in README.md; a warning means the category description was saved but Yoast data was not. SEO title/description/focus keyphrase are written as Yoast-compatible meta fields (only takes effect if the site has Yoast SEO active with those fields exposed to the REST API). Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
-        "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. Use an <img> with accurate descriptive alt text when an image is appropriate. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via set_featured_image. " +
+        "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with at least one <h2> or <h3> subheading, and make sure at least one subheading contains the focus keyphrase or a close natural variant of it, unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. When an image is appropriate, call upload_image (after this post exists) to host it on this site and use its returned source_url in an <img> tag with accurate descriptive alt text. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via upload_image/set_featured_image. " +
         articleWritingGuidance,
       inputSchema: z.object({
               siteId: siteIdSchema,
@@ -527,7 +563,7 @@ const rawHandler = createMcpHandler(
     {
       title: "Check SEO",
       description:
-        "Run an on-page SEO analysis (equivalent to Yoast SEO's core checks: keyphrase presence in title, introduction, subheadings, meta description, and slug; keyphrase density; content length; links; image alt text) against draft content before publishing. Use this before create_post or update_post to catch problems while they're still easy to fix, since WordPress/Yoast only compute this analysis inside the block editor UI, not automatically for API-created posts.",
+        "Run an on-page SEO analysis (equivalent to Yoast SEO's core checks: keyphrase presence in title, introduction, subheadings, meta description, and slug; keyphrase density; content length; links; image alt text) against draft content before publishing. Use this before create_post or update_post to catch problems while they're still easy to fix. This tool does not calculate Yoast's separate Readability score, so its result does not replace the final readability pass required when drafting or rewriting content.",
       inputSchema: z.object({
               title: z.string().optional(),
               contentHtml: z.string().optional().describe("Post body HTML to analyze."),
@@ -547,45 +583,44 @@ const rawHandler = createMcpHandler(
   );
 
   registerGatedTool(
+    "upload_image",
+    {
+      title: "Upload Image",
+      description:
+        "Convert an image to JPEG and upload it to a post's WordPress media library for use inside the post body - it does not change the post's featured image (use set_featured_image for that). Returns the uploaded media, including source_url; use that URL as the src of an <img> tag in contentHtml via create_post/update_post. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
+      inputSchema: imageUploadInputSchema("image.jpg"),
+    },
+    async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename }, ctx) => {
+      try {
+        const resolved = clientFromContext(ctx, siteId);
+        if (!resolved.ok) return resolved.elicit;
+        const media = await uploadImageToMediaLibrary(resolved.client, postId, {
+          imageUrl,
+          imageBase64,
+          mimeType,
+          filename,
+        });
+        return textResult({ media });
+      } catch (e) {
+        return errorResult(e);
+      }
+    }
+  );
+
+  registerGatedTool(
     "set_featured_image",
     {
       title: "Set Featured Image",
       description:
-        "Convert an image to JPEG, upload it, and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
-      inputSchema: z.object({
-              siteId: siteIdSchema,
-              postId: z.number().int(),
-              imageUrl: z.string().url().optional(),
-              imageBase64: z.string().optional(),
-              mimeType: z
-                .string()
-                .optional()
-                .describe("Source MIME type if known. The uploaded WordPress media is always image/jpeg."),
-              filename: z.string().default("featured-image.jpg"),
-            }),
+        "Convert an image to JPEG, upload it, and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given. For images inside the post body instead, use upload_image.",
+      inputSchema: imageUploadInputSchema("featured-image.jpg"),
     },
     async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename }, ctx) => {
       try {
         const resolved = clientFromContext(ctx, siteId);
         if (!resolved.ok) return resolved.elicit;
         const client = resolved.client;
-        if (!imageUrl && !imageBase64) {
-          throw new ToolError("Provide either imageUrl or imageBase64.");
-        }
-        if (imageUrl && imageBase64) {
-          throw new ToolError("Provide only one of imageUrl or imageBase64, not both.");
-        }
-
-        const postTitle = await client.getPostTitle(postId);
-        const media = imageUrl
-          ? await client.uploadMediaFromUrl(imageUrl, filename, postTitle)
-          : await client.uploadMediaFromBase64(
-              imageBase64!,
-              filename,
-              mimeType,
-              postTitle
-            );
-
+        const media = await uploadImageToMediaLibrary(client, postId, { imageUrl, imageBase64, mimeType, filename });
         const post = await client.setFeaturedImage(postId, media.id);
         return textResult({ media, post });
       } catch (e) {
@@ -597,10 +632,13 @@ const rawHandler = createMcpHandler(
   {
     instructions:
       "siteId (from list_sites) selects which connected WordPress site a tool acts on - it's shared " +
-      "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, and " +
-      "set_featured_image, so a value obtained from list_sites or list_posts can be reused across calls " +
-      "in the same session. Call list_categories and list_tags before create_post/update_post to see " +
-      "what already exists on that site, since names are matched case-sensitively.",
+      "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, " +
+      "upload_image, and set_featured_image, so a value obtained from list_sites or list_posts can be " +
+      "reused across calls in the same session. Call list_categories and list_tags before " +
+      "create_post/update_post to see what already exists on that site, since names are matched " +
+      "case-sensitively. To put a real image inside a post's body, call upload_image with that post's " +
+      "postId and use the returned media.source_url as an <img> src; upload_image never changes the " +
+      "featured image, so use set_featured_image separately for that.",
   }
 );
 

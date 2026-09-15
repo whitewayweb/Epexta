@@ -11,6 +11,7 @@ An MCP server (deployed on Vercel) that lets ChatGPT write, categorize, tag, ill
 - `update_category_seo` — improve an existing category archive's description, focus keyphrase, SEO title, and meta description.
 - `publish_post` — flip a post to published
 - `check_seo` — run an on-page SEO analysis (Yoast-equivalent checks: keyphrase in title/introduction/subheadings/meta description/slug, keyphrase density, content length, links, image alt text) against draft content, independent of publishing
+- `upload_image` — upload an image (by URL or base64) to a post's media library for use inside the post body, without touching the featured image
 - `set_featured_image` — upload an image (by URL or base64) and set it as a post's featured image
 
 No delete capability is exposed (for posts, media, categories, or tags) — intentionally, to keep the plugin's blast radius limited to creating and editing content.
