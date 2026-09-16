@@ -171,6 +171,34 @@ describe("WordPress SEO metadata write gating", () => {
   });
 });
 
+describe("WordPress post content normalisation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("replaces long dashes in post text without changing HTML attributes", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createWordPressClient(credentials).createPost({
+      title: "A post",
+      contentHtml: '<p>Case study—not evidence &mdash; just context.</p><a href="https://example.com/a—b">Read more</a>',
+      status: "draft",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.content).toBe('<p>Case study, not evidence, just context.</p><a href="https://example.com/a—b">Read more</a>');
+  });
+
+  it("normalises content when updating a post", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createWordPressClient(credentials).updatePost(99, { contentHtml: "<p>One&ndash;two</p>" });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.content).toBe("<p>One, two</p>");
+  });
+});
+
 describe("WordPress media uploads", () => {
   afterEach(() => vi.unstubAllGlobals());
 

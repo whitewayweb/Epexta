@@ -80,6 +80,19 @@ export interface WordPressCredentials {
 }
 
 const JPEG_MIME_TYPE = "image/jpeg";
+const LONG_DASH_IN_TEXT = /(?:&(?:mdash|ndash);|&#(?:8211|8212);|&#x(?:2013|2014);|[—–])/gi;
+
+/**
+ * Content authored through this MCP uses commas, periods, or parentheses instead
+ * of em and en dashes. Restrict the replacement to text nodes so URLs and other
+ * HTML attributes are left intact.
+ */
+function normaliseContentHtml(contentHtml: string): string {
+  return contentHtml
+    .split(/(<[^>]*>)/g)
+    .map((part) => (part.startsWith("<") ? part : part.replace(new RegExp(`\\s*${LONG_DASH_IN_TEXT.source}\\s*`, "gi"), ", ")))
+    .join("");
+}
 
 function jpegFilename(filename: string) {
   const basename = filename.trim().replace(/\.[^.]+$/, "") || "featured-image";
@@ -343,7 +356,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
     const body: Record<string, unknown> = {
       title: input.title,
-      content: input.contentHtml,
+      content: normaliseContentHtml(input.contentHtml),
       status: input.status,
     };
     if (input.excerpt) body.excerpt = input.excerpt;
@@ -375,7 +388,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
 
     const body: Record<string, unknown> = {};
     if (fields.title) body.title = fields.title;
-    if (fields.contentHtml) body.content = fields.contentHtml;
+    if (fields.contentHtml !== undefined) body.content = normaliseContentHtml(fields.contentHtml);
     if (fields.status) body.status = fields.status;
     if (fields.excerpt) body.excerpt = fields.excerpt;
     if (fields.slug) body.slug = fields.slug;
