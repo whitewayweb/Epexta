@@ -141,12 +141,40 @@ function runYoastChecks(input: SeoCheckInput): SeoCheck[] {
             }
     );
 
-    const headings = [...input.contentHtml.matchAll(/<h[2-4][^>]*>([\s\S]*?)<\/h[2-4]>/gi)].map((m) => stripHtml(m[1]));
+    // Yoast's keyphrase-in-subheadings assessment considers H2 and H3 only.
+    // A single match is not enough for a long article: Yoast's green range is
+    // 30-75% of those headings. We deliberately match the literal keyphrase
+    // here; synonym and word-form analysis requires Yoast Premium's language
+    // analysis and is not available through the ordinary WordPress REST API.
+    const headings = [...input.contentHtml.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi)].map((m) => stripHtml(m[1]));
     if (headings.length > 0) {
+      const matchingHeadings = headings.filter((heading) => includesCi(heading, keyphrase)).length;
+      const headingPercentage = (matchingHeadings / headings.length) * 100;
       checks.push(
-        headings.some((h) => includesCi(h, keyphrase))
-          ? { id: "yoast:keyphrase-in-subheading", status: "good", message: "At least one subheading contains the focus keyphrase.", alignment: aligned }
-          : { id: "yoast:keyphrase-in-subheading", status: "ok", message: "No subheading contains the focus keyphrase.", alignment: aligned }
+        headingPercentage >= 30 && headingPercentage <= 75
+          ? {
+              id: "yoast:keyphrase-in-subheading",
+              status: "good",
+              message: `${matchingHeadings} of ${headings.length} H2/H3 subheadings contain the focus keyphrase.`,
+              alignment: aligned,
+            }
+          : headingPercentage < 30
+            ? {
+                id: "yoast:keyphrase-in-subheading",
+                status: "bad",
+                message:
+                  `Only ${matchingHeadings} of ${headings.length} H2/H3 subheadings contain the focus keyphrase. ` +
+                  "Use it in more natural subheadings (aim for 30-75%).",
+                alignment: aligned,
+              }
+            : {
+                id: "yoast:keyphrase-in-subheading",
+                status: "ok",
+                message:
+                  `${matchingHeadings} of ${headings.length} H2/H3 subheadings contain the focus keyphrase. ` +
+                  "Avoid overusing it; aim for 30-75%.",
+                alignment: aligned,
+              }
       );
     }
 

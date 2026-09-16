@@ -10,7 +10,7 @@ An MCP server (deployed on Vercel) that lets ChatGPT write, categorize, tag, ill
 - `update_post` — edit an existing post's content, terms, SEO meta, slug, or status. Same `warnings`/`seoCheck` response shape as `create_post`.
 - `update_category_seo` — improve an existing category archive's description, focus keyphrase, SEO title, and meta description.
 - `publish_post` — flip a post to published
-- `check_seo` — run an on-page SEO analysis (Yoast-equivalent checks: keyphrase in title/introduction/subheadings/meta description/slug, keyphrase density, content length, links, image alt text) against draft content, independent of publishing
+- `check_seo` — run an on-page SEO analysis (Yoast-equivalent checks: keyphrase in title/introduction/H2-H3 subheadings/meta description/slug, keyphrase density, content length, links, image alt text) against draft content, independent of publishing
 - `upload_image` — upload an image (by URL or base64) to a post's media library for use inside the post body, without touching the featured image
 - `set_featured_image` — upload an image (by URL or base64) and set it as a post's featured image
 

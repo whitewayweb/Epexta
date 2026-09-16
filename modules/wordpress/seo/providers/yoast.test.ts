@@ -65,15 +65,45 @@ describe("yoastAdapter.checks", () => {
     expect(lengthCheck?.status).toBe("ok");
   });
 
-  it("flags a subheading check only when headings are present in content", () => {
+  it("only evaluates H2 and H3 subheadings", () => {
     const withoutHeadings = yoastAdapter.checks({ focusKeyphrase: "widgets", contentHtml: "<p>widgets</p>" }, capabilities);
     expect(withoutHeadings.some((c) => c.id === "yoast:keyphrase-in-subheading")).toBe(false);
 
-    const withHeadings = yoastAdapter.checks(
-      { focusKeyphrase: "widgets", contentHtml: "<h2>Intro</h2><p>widgets</p>" },
+    const h4Only = yoastAdapter.checks(
+      { focusKeyphrase: "widgets", contentHtml: "<h4>Widgets</h4><p>widgets</p>" },
       capabilities
     );
-    expect(withHeadings.some((c) => c.id === "yoast:keyphrase-in-subheading")).toBe(true);
+    expect(h4Only.some((c) => c.id === "yoast:keyphrase-in-subheading")).toBe(false);
+  });
+
+  it("requires the keyphrase in 30-75% of H2/H3 subheadings", () => {
+    const tooFew = yoastAdapter.checks(
+      {
+        focusKeyphrase: "widgets",
+        contentHtml: "<h2>Widgets overview</h2><h2>Choosing a supplier</h2><h3>Pricing</h3><h2>Support</h2>",
+      },
+      capabilities
+    );
+    const tooFewCheck = tooFew.find((c) => c.id === "yoast:keyphrase-in-subheading");
+    expect(tooFewCheck).toMatchObject({ status: "bad", message: expect.stringContaining("1 of 4") });
+
+    const inRange = yoastAdapter.checks(
+      {
+        focusKeyphrase: "widgets",
+        contentHtml: "<h2>Widgets overview</h2><h2>Choosing widgets</h2><h3>Pricing</h3><h2>Support</h2>",
+      },
+      capabilities
+    );
+    expect(inRange.find((c) => c.id === "yoast:keyphrase-in-subheading")).toMatchObject({ status: "good" });
+
+    const tooMany = yoastAdapter.checks(
+      {
+        focusKeyphrase: "widgets",
+        contentHtml: "<h2>Widgets overview</h2><h2>Choosing widgets</h2><h3>Widgets pricing</h3><h2>Widgets support</h2>",
+      },
+      capabilities
+    );
+    expect(tooMany.find((c) => c.id === "yoast:keyphrase-in-subheading")).toMatchObject({ status: "ok" });
   });
 });
 
