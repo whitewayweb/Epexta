@@ -22,7 +22,7 @@ No delete capability is exposed (for posts, media, categories, or tags) — inte
 2. `npm install`
 3. `npm run dev`
 4. Sign up at `http://localhost:3000/wordpress/connect`. On your WordPress site: **Users → Profile → Application Passwords**, generate one for a user with publishing permissions, then paste the site URL, username, and Application Password into the connection form.
-5. Connect an MCP client: in Claude (Settings → Connectors → Add custom connector) or ChatGPT, add the connector URL shown at `/settings/connected-apps`, then sign in to Epexta and approve. For scripts or clients that only accept a static bearer token, generate an API key at `/settings/api-key` instead.
+5. Connect an MCP client: in Claude (Settings → Connectors → Add custom connector) or ChatGPT, add the connector URL from **Connect an app** at `/settings/connected-apps`, then sign in to Epexta and approve. For scripts or clients that only accept a static bearer token, generate an API key at `/settings/api-key` instead.
 
 ## Deploying
 
