@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, LayoutDashboard, Users } from "lucide-react";
+import { KeyRound, LayoutDashboard, Plug, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoMark } from "@/components/site/logo-mark";
@@ -29,7 +29,8 @@ function ModuleIcon({ slug, className }: { slug: ModuleDefinition["slug"]; class
 
 const SETTINGS_LINKS = [
   { href: "/settings/members", label: "Members", icon: Users },
-  { href: "/settings/api-key", label: "API key", icon: KeyRound },
+  { href: "/settings/connected-apps", label: "Connected apps", icon: Plug },
+  { href: "/settings/api-key", label: "API keys", icon: KeyRound },
 ];
 
 // group is a free-text navigation key on the registry (lib/modules.ts) - it carries no

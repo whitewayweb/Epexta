@@ -37,6 +37,28 @@ export const getUserOrganisation = cache(async (userId: string): Promise<Organis
 });
 
 /**
+ * This user's role in one specific organisation, or null if they aren't a member (or the
+ * organisation no longer exists). Unlike getUserOrganisation, this doesn't assume a user
+ * belongs to only one organisation - it's what anything pinned to an organisation (an
+ * OAuth grant, see lib/oauth/tokens.ts) uses to re-check membership on each request.
+ */
+export async function getOrganisationRole(organisationId: string, userId: string): Promise<OrganisationRole | null> {
+  const payload = await getPayloadClient();
+  const doc = await payload
+    .findByID({ collection: "organisations", id: organisationId, depth: 0, overrideAccess: true })
+    .catch(() => null);
+  return findMember((doc?.members ?? []) as MemberRow[], userId)?.role ?? null;
+}
+
+export async function getOrganisationName(organisationId: string): Promise<string | null> {
+  const payload = await getPayloadClient();
+  const doc = await payload
+    .findByID({ collection: "organisations", id: organisationId, depth: 0, overrideAccess: true })
+    .catch(() => null);
+  return doc?.name ?? null;
+}
+
+/**
  * Creates a new organisation with this user as its sole admin. If no name is given (or it's
  * blank), defaults to the local part of the user's email so every organisation gets a usable
  * display name regardless of which flow created it.

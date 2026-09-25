@@ -6,6 +6,10 @@ import { fileURLToPath } from "url";
 
 import { ApiKeys } from "./collections/ApiKeys";
 import { ModuleEntitlements } from "./collections/ModuleEntitlements";
+import { OAuthAuthorizationCodes } from "./collections/OAuthAuthorizationCodes";
+import { OAuthClients } from "./collections/OAuthClients";
+import { OAuthGrants } from "./collections/OAuthGrants";
+import { OAuthTokens } from "./collections/OAuthTokens";
 import { Organisations } from "./collections/Organisations";
 import { Users } from "./collections/Users";
 import { GoogleAnalyticsMappings } from "./modules/google-analytics/collection";
@@ -57,6 +61,10 @@ export default buildConfig({
     Organisations,
     ApiKeys,
     ModuleEntitlements,
+    OAuthClients,
+    OAuthAuthorizationCodes,
+    OAuthGrants,
+    OAuthTokens,
     WordPressConnections,
     GoogleConnections,
     GoogleOAuthStates,

@@ -1,4 +1,5 @@
 import type { PayloadRequest } from "payload";
+import { relationshipId } from "./relationship";
 
 export const ORGANISATION_ROLES = ["admin", "member"] as const;
 export type OrganisationRole = (typeof ORGANISATION_ROLES)[number];
@@ -9,7 +10,7 @@ export interface MemberRow {
 }
 
 export function memberUserId(member: MemberRow): string {
-  return typeof member.user === "object" ? String(member.user.id) : String(member.user);
+  return relationshipId(member.user);
 }
 
 export function findMember(members: MemberRow[] | null | undefined, userId: string): MemberRow | undefined {

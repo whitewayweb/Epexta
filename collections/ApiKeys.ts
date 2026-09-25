@@ -1,4 +1,5 @@
 import type { CollectionConfig } from "payload";
+import { serverOnlyAccess } from "../lib/collection-access";
 
 // Platform-wide (not WordPress-specific): a user can hold several named API keys,
 // each usable as a bearer token against any module's MCP endpoint. Access is locked
@@ -10,13 +11,7 @@ export const ApiKeys: CollectionConfig = {
   admin: {
     useAsTitle: "name",
   },
-  access: {
-    read: () => false,
-    create: () => false,
-    update: () => false,
-    delete: () => false,
-    admin: ({ req: { user } }) => user?.role === "superadmin",
-  },
+  access: serverOnlyAccess,
   fields: [
     {
       name: "user",

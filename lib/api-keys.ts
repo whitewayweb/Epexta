@@ -1,15 +1,12 @@
-import crypto from "crypto";
 import { getPayloadClient } from "./payload";
+import { relationshipId } from "./relationship";
+import { sha256Hex } from "./secret-hash";
 import type { ApiKey } from "@/payload-types";
 
 export interface DisplayApiKey {
   id: string;
   name: string;
   createdAt: string;
-}
-
-function hashKey(rawKey: string): string {
-  return crypto.createHash("sha256").update(rawKey).digest("hex");
 }
 
 function toDisplay(doc: ApiKey): DisplayApiKey {
@@ -33,7 +30,7 @@ export async function createApiKey(userId: string, name: string, rawKey: string)
   const payload = await getPayloadClient();
   const doc = await payload.create({
     collection: "api-keys",
-    data: { user: Number(userId), name, hashedKey: hashKey(rawKey) },
+    data: { user: Number(userId), name, hashedKey: sha256Hex(rawKey) },
     overrideAccess: true,
   });
   return toDisplay(doc);
@@ -44,8 +41,7 @@ export async function deleteApiKey(userId: string, keyId: string): Promise<void>
   const doc = await payload.findByID({ collection: "api-keys", id: keyId, overrideAccess: true }).catch(() => null);
   if (!doc) throw new Error("API key not found.");
 
-  const ownerId = typeof doc.user === "object" ? String((doc.user as { id: unknown }).id) : String(doc.user);
-  if (ownerId !== userId) throw new Error("API key not found.");
+  if (relationshipId(doc.user) !== userId) throw new Error("API key not found.");
 
   await payload.delete({ collection: "api-keys", id: keyId, overrideAccess: true });
 }
@@ -55,7 +51,7 @@ export async function getUserByApiKey(rawKey: string): Promise<{ id: string; ema
   const payload = await getPayloadClient();
   const result = await payload.find({
     collection: "api-keys",
-    where: { hashedKey: { equals: hashKey(rawKey) } },
+    where: { hashedKey: { equals: sha256Hex(rawKey) } },
     limit: 1,
     depth: 1,
     overrideAccess: true,

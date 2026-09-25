@@ -101,9 +101,10 @@ enforcement from day one, both modules follow the WordPress pattern
 - Every Server Action in each module's `actions.ts` checks that module's own
   entitlement before doing anything module-specific, with the same lazy-
   organisation-creation exception documented in `CLAUDE.md`.
-- `app/api/google-search-console/mcp/route.ts` and
-  `app/api/google-analytics/mcp/route.ts` each compute `moduleEnabled` once in
-  `verifyToken` for their own slug and register every tool through
+- The combined `app/api/google/mcp/route.ts` (see "One Google Site Hub MCP
+  endpoint, not one per module") computes each module's `moduleEnabled`
+  independently, once per request, in its `buildExtra` (passed to
+  `withEpextaMcpAuth`, `lib/mcp-auth.ts`), and registers every tool through
   `registerGatedTool` — never a raw `server.registerTool` call, and never a
   tool that reads `extra` directly instead of going through the per-tool
   helper.
@@ -815,8 +816,7 @@ not just the resulting numbers.
 ## MCP tools
 
 ```text
-app/api/google-search-console/mcp/route.ts
-app/api/google-analytics/mcp/route.ts
+app/api/google/mcp/route.ts   (both modules' tools, each gated on its own slug)
 ```
 
 | Module | Phase | Tool | Purpose |

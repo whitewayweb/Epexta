@@ -1,10 +1,9 @@
-import type { AuthInfo, InputRequiredResult, ServerContext } from "@modelcontextprotocol/server";
+import type { InputRequiredResult, ServerContext } from "@modelcontextprotocol/server";
 import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprotocol/server";
-import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
-import { getUserOrganisation } from "@/lib/organisation";
-import { getUserByApiKey } from "@/lib/session";
+import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
 import {
   createWordPressClient,
   WordPressApiError,
@@ -92,29 +91,16 @@ function errorResult(error: unknown) {
   };
 }
 
-async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
-  if (!bearerToken) return undefined;
-
-  try {
-    const user = await getUserByApiKey(bearerToken);
-    if (!user) {
-      console.error("[wordpress-mcp] auth failed: no user for that API key");
-      return undefined;
-    }
-
-    // Authentication only proves who the caller is. Whether they have an organisation
-    // or any connected WordPress sites yet is a separate, non-fatal condition - surfaced
-    // to the LLM as a clear tool-call error (see resolveConnection) rather than a generic
-    // 401, so it can tell the user what to do instead of just "unauthorized".
-    const organisation = await getUserOrganisation(user.id);
-    const moduleEnabled = organisation ? await isModuleEnabled(organisation.organisationId, "wordpress") : false;
-    const connections = moduleEnabled && organisation ? await listWordPressConnections(organisation.organisationId) : [];
-
-    return { token: bearerToken, clientId: user.id, scopes: [], extra: { connections, moduleEnabled } };
-  } catch (error) {
-    console.error("[wordpress-mcp] auth threw an error:", error);
-    return undefined;
-  }
+// Authentication (lib/mcp-auth.ts) only proves who the caller is and which organisation
+// they act for. Whether that organisation has the module enabled or any connected
+// WordPress sites yet is a separate, non-fatal condition - surfaced to the LLM as a clear
+// tool-call error (see resolveConnection) rather than a generic 401, so it can tell the
+// user what to do instead of just "unauthorized".
+async function buildWordPressExtra(caller: McpCaller) {
+  const { organisationId } = caller;
+  const moduleEnabled = organisationId ? await isModuleEnabled(organisationId, "wordpress") : false;
+  const connections = moduleEnabled && organisationId ? await listWordPressConnections(organisationId) : [];
+  return { connections, moduleEnabled };
 }
 
 function siteLabel(connection: WordPressConnection): string {
@@ -143,7 +129,7 @@ type ResolvedConnection =
 // (having called list_sites first, per the tool descriptions) skip elicitation entirely.
 //
 // This lookup against ctx.http.authInfo.extra.connections (the org-scoped list built once
-// in verifyToken) is the only cross-organisation authorization check in this file - siteId
+// in buildWordPressExtra) is the only cross-organisation authorization check in this file - siteId
 // is never resolved via an independent findByID against the full collection.
 //
 // Site selection is a multi-round-trip elicitation (2026-07-28 protocol): when a choice is
@@ -681,7 +667,7 @@ const rawHandler = createMcpHandler(
   }
 );
 
-const handler = withMcpAuth(rawHandler, verifyToken, { required: true });
+const handler = withEpextaMcpAuth("/api/wordpress/mcp", rawHandler, buildWordPressExtra, "wordpress-mcp");
 
 export const maxDuration = 60;
 

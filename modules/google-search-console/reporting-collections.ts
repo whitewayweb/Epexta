@@ -1,21 +1,14 @@
 import type { CollectionConfig } from "payload";
+import { serverOnlyAccess } from "../../lib/collection-access";
 
 // Operational collections backing Phase 2's durable reporting state - see "Durable
 // reporting state", "Distributed, race-safe refresh deduplication", and "Quota policy"
-// in GOOGLE_PERFORMANCE_PLAN.md. None of these are end-user-facing: same server-only
-// access pattern as modules/google-connections/collections.ts (access returns false for
-// every ordinary Payload REST/GraphQL/admin request), read and written exclusively by
+// in GOOGLE_PERFORMANCE_PLAN.md. None of these are end-user-facing: the shared server-only
+// access rule in lib/collection-access.ts (access returns false for every ordinary
+// Payload REST/GraphQL/admin request), read and written exclusively by
 // modules/google-search-console/reporting.ts using overrideAccess: true.
 const REPORT_TYPES = ["post_performance", "search_queries", "index_status", "site_performance"] as const;
 const FRESHNESS_STATES = ["fresh", "stale", "delayed", "unavailable"] as const;
-
-const serverOnlyAccess = {
-  read: () => false,
-  create: () => false,
-  update: () => false,
-  delete: () => false,
-  admin: ({ req: { user } }: { req: { user: { role?: string } | null } }) => user?.role === "superadmin",
-};
 
 // Cache of normalised report results, keyed for exact lookup by
 // (mapping, reportType, canonicalPostUrl, normalizedQueryParams, dateRangeStart,

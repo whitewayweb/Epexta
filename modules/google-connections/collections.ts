@@ -1,4 +1,5 @@
 import type { CollectionConfig, FieldHook } from "payload";
+import { serverOnlyAccess } from "../../lib/collection-access";
 import { decrypt, encrypt } from "../../lib/crypto";
 import { GOOGLE_CAPABILITIES } from "./capabilities";
 
@@ -28,13 +29,7 @@ export const GoogleConnections: CollectionConfig = {
     useAsTitle: "googleAccountLabel",
     description: "Google OAuth connections shared by the Google Site Hub modules. Server-only - see modules/google-connections/index.ts.",
   },
-  access: {
-    read: () => false,
-    create: () => false,
-    update: () => false,
-    delete: () => false,
-    admin: ({ req: { user } }) => user?.role === "superadmin",
-  },
+  access: serverOnlyAccess,
   fields: [
     {
       name: "organisation",
@@ -111,13 +106,7 @@ export const GoogleOAuthStates: CollectionConfig = {
     useAsTitle: "state",
     description: "Short-lived OAuth state/PKCE records. Server-only - see modules/google-connections/index.ts.",
   },
-  access: {
-    read: () => false,
-    create: () => false,
-    update: () => false,
-    delete: () => false,
-    admin: ({ req: { user } }) => user?.role === "superadmin",
-  },
+  access: serverOnlyAccess,
   fields: [
     { name: "state", type: "text", required: true, unique: true, index: true },
     { name: "codeVerifier", type: "text", required: true },

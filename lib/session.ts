@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getUserByApiKey as lookupUserByApiKey } from "./api-keys";
 import { getPayloadClient } from "./payload";
 
 const COOKIE_NAME = "payload-token";
@@ -48,9 +47,4 @@ export async function requireUser(redirectTo: string): Promise<SessionUser> {
     redirect(`/login?redirectTo=${encodeURIComponent(redirectTo)}`);
   }
   return user;
-}
-
-/** Resolves the user that owns this API key, or null if it's invalid/revoked. */
-export async function getUserByApiKey(apiKey: string): Promise<SessionUser | null> {
-  return lookupUserByApiKey(apiKey);
 }

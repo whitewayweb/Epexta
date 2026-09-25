@@ -30,9 +30,8 @@ export const MODULES = [
     overviewPath: "/google-search-console",
     connectPath: "/google-search-console/connect",
     // Points at the combined Google Site Hub route - see "One Google Site Hub MCP
-    // endpoint, not one per module" in GOOGLE_PERFORMANCE_PLAN.md. The old
-    // /api/google-search-console/mcp route stays live as a compatibility endpoint
-    // for already-registered connectors; new onboarding only ever hands out this URL.
+    // endpoint, not one per module" in GOOGLE_PERFORMANCE_PLAN.md. Each distinct
+    // mcpPath is also one OAuth protected resource (lib/oauth/resources.ts).
     mcpPath: "/api/google/mcp",
     group: "google-site-hub",
   },

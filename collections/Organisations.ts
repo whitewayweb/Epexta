@@ -1,5 +1,6 @@
 import type { CollectionConfig, PayloadRequest } from "payload";
-import { hasRole, isSuperadmin, ORGANISATION_ROLES, type MemberRow } from "../lib/members";
+import { hasRole, isSuperadmin, memberUserId, ORGANISATION_ROLES, type MemberRow } from "../lib/members";
+import { logOAuthEvent } from "../lib/oauth/audit";
 
 async function isOrganisationAdmin(req: PayloadRequest, id: string | number | undefined): Promise<boolean> {
   if (!req.user || !id) return false;
@@ -29,6 +30,41 @@ export const Organisations: CollectionConfig = {
           data.members = [{ user: req.user.id, role: "admin" }];
         }
         return data;
+      },
+    ],
+    afterChange: [
+      // Removing a member revokes their connected apps for this organisation straight away,
+      // in the same transaction - whichever path removed them (Server Action or /admin).
+      // Token verification also re-checks membership on every request (lib/oauth/tokens.ts),
+      // so this is what keeps Connected apps and the audit trail accurate, not the only guard.
+      async ({ operation, doc, previousDoc, req }) => {
+        if (operation !== "update") return;
+        const remaining = new Set(((doc.members ?? []) as MemberRow[]).map(memberUserId));
+        const removed = ((previousDoc?.members ?? []) as MemberRow[])
+          .map(memberUserId)
+          .filter((userId) => !remaining.has(userId));
+        if (removed.length === 0) return;
+
+        const revoked = await req.payload.update({
+          collection: "oauth-grants",
+          where: {
+            organisation: { equals: doc.id },
+            user: { in: removed.map(Number) },
+            revokedAt: { exists: false },
+          },
+          data: { revokedAt: new Date().toISOString(), revokedReason: "member_removed" },
+          depth: 0,
+          req,
+          context: { systemWrite: true },
+          overrideAccess: true,
+        });
+        if (revoked.docs.length > 0) {
+          logOAuthEvent("grants_revoked", {
+            reason: "member_removed",
+            organisationId: String(doc.id),
+            grantIds: revoked.docs.map((grant) => String(grant.id)),
+          });
+        }
       },
     ],
   },

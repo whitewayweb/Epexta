@@ -1,3 +1,4 @@
+import { runInTransaction } from "../../lib/db-transactions";
 import { getPayloadClient } from "../../lib/payload";
 import { getConnectionForCapability } from "../google-connections";
 import { getWordPressConnection } from "../wordpress/organisation";
@@ -92,10 +93,7 @@ export async function createOrReplaceMapping(
   if (!googleConnection) throw new Error("Google connection not found for this organisation/capability.");
 
   const payload = await getPayloadClient();
-  const transactionID = await payload.db.beginTransaction!();
-  if (transactionID === null) throw new Error("Could not start a database transaction.");
-
-  try {
+  return runInTransaction(async (req) => {
     const existing = await payload.find({
       collection: "google-search-console-mappings",
       where: {
@@ -105,7 +103,7 @@ export async function createOrReplaceMapping(
       },
       depth: 0,
       limit: 1,
-      req: { transactionID },
+      req,
       overrideAccess: true,
     });
     const previous = existing.docs[0];
@@ -115,7 +113,7 @@ export async function createOrReplaceMapping(
         collection: "google-search-console-mappings",
         id: previous.id,
         data: { status: "superseded", replacedAt: new Date().toISOString() },
-        req: { transactionID },
+        req,
         overrideAccess: true,
       });
     }
@@ -131,7 +129,7 @@ export async function createOrReplaceMapping(
         confirmedAt: new Date().toISOString(),
         status: "active",
       },
-      req: { transactionID },
+      req,
       overrideAccess: true,
     });
 
@@ -140,15 +138,11 @@ export async function createOrReplaceMapping(
         collection: "google-search-console-mappings",
         id: previous.id,
         data: { replacedBy: created.id },
-        req: { transactionID },
+        req,
         overrideAccess: true,
       });
     }
 
-    await payload.db.commitTransaction!(transactionID);
     return { mappingId: String(created.id) };
-  } catch (error) {
-    await payload.db.rollbackTransaction!(transactionID);
-    throw error;
-  }
+  });
 }

@@ -10,6 +10,8 @@ import * as migration_20260914_120000_cascade_delete_reporting_fks from './20260
 import * as migration_20260914_223935_add_site_performance_report_type from './20260914_223935_add_site_performance_report_type';
 import * as migration_20260914_224504_remove_compare_periods_report_type from './20260914_224504_remove_compare_periods_report_type';
 import * as migration_20260915_181406_add_wordpress_seo_provider_fields from './20260915_181406_add_wordpress_seo_provider_fields';
+import * as migration_20260925_163833_add_oauth_authorization_server from './20260925_163833_add_oauth_authorization_server';
+import * as migration_20260925_221212_oauth_grant_revoked_by from './20260925_221212_oauth_grant_revoked_by';
 
 export const migrations = [
   {
@@ -70,6 +72,16 @@ export const migrations = [
   {
     up: migration_20260915_181406_add_wordpress_seo_provider_fields.up,
     down: migration_20260915_181406_add_wordpress_seo_provider_fields.down,
-    name: '20260915_181406_add_wordpress_seo_provider_fields'
+    name: '20260915_181406_add_wordpress_seo_provider_fields',
+  },
+  {
+    up: migration_20260925_163833_add_oauth_authorization_server.up,
+    down: migration_20260925_163833_add_oauth_authorization_server.down,
+    name: '20260925_163833_add_oauth_authorization_server',
+  },
+  {
+    up: migration_20260925_221212_oauth_grant_revoked_by.up,
+    down: migration_20260925_221212_oauth_grant_revoked_by.down,
+    name: '20260925_221212_oauth_grant_revoked_by'
   },
 ];

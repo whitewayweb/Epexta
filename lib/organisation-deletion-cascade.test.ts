@@ -6,8 +6,8 @@ import { getPayloadClient } from "./payload";
 // flow: Payload's Postgres adapter defaults every relationship FK to ON DELETE SET NULL
 // regardless of the field's own `required: true`, so deleting an Organisation crashed
 // with a NOT NULL constraint violation the moment any required-relationship child row
-// (a WordPress connection, a Google connection, a mapping, an entitlement, an OAuth
-// state) existed - it never actually cascaded. This exercises the real fix: deleting an
+// (a WordPress connection, a Google connection, a mapping, an entitlement, a Google OAuth
+// state, an OAuth grant/code/token) existed - it never actually cascaded. This exercises the real fix: deleting an
 // organisation with a full set of Google Site Hub data attached must succeed and every
 // row that should be gone must actually be gone - not just that the delete call itself
 // doesn't throw.
@@ -95,6 +95,53 @@ describe("deleting an organisation cascades correctly", () => {
       overrideAccess: true,
     });
 
+    const oauthClient = await payload.create({
+      collection: "oauth-clients",
+      data: {
+        clientId: `epx_client_cascade-${suffix}`,
+        registrationType: "dcr",
+        clientName: "Cascade test client",
+        redirectUris: ["https://client.example.test/callback"],
+      },
+      overrideAccess: true,
+    });
+    const oauthCode = await payload.create({
+      collection: "oauth-authorization-codes",
+      data: {
+        hashedCode: `cascade-code-${suffix}`,
+        client: oauthClient.id,
+        user: Number(orgMember.id),
+        organisation: Number(organisationId),
+        resource: "https://example.test/api/wordpress/mcp",
+        scopes: [],
+        redirectUri: "https://client.example.test/callback",
+        codeChallenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      overrideAccess: true,
+    });
+    const oauthGrant = await payload.create({
+      collection: "oauth-grants",
+      data: {
+        user: Number(orgMember.id),
+        organisation: Number(organisationId),
+        client: oauthClient.id,
+        resource: "https://example.test/api/wordpress/mcp",
+        scopes: [],
+      },
+      overrideAccess: true,
+    });
+    const oauthToken = await payload.create({
+      collection: "oauth-tokens",
+      data: {
+        hashedToken: `cascade-token-${suffix}`,
+        grant: oauthGrant.id,
+        tokenType: "access",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+      overrideAccess: true,
+    });
+
     // The delete itself must succeed, not throw.
     await payload.delete({ collection: "organisations", id: organisationId, overrideAccess: true });
 
@@ -116,6 +163,17 @@ describe("deleting an organisation cascades correctly", () => {
     await expect(
       payload.findByID({ collection: "google-search-console-mappings", id: mapping.id, overrideAccess: true })
     ).rejects.toBeTruthy();
+
+    // A departed organisation's connected apps and their tokens go with it; the OAuth
+    // client record itself is shared across organisations and survives.
+    for (const [collection, id] of [
+      ["oauth-authorization-codes", oauthCode.id],
+      ["oauth-grants", oauthGrant.id],
+      ["oauth-tokens", oauthToken.id],
+    ] as const) {
+      await expect(payload.findByID({ collection, id, overrideAccess: true })).rejects.toBeTruthy();
+    }
+    await payload.delete({ collection: "oauth-clients", id: oauthClient.id, overrideAccess: true });
 
     // Users themselves are not deleted by an organisation deletion - only their
     // membership in it goes away, via organisations_members' own cascade.

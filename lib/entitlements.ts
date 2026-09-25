@@ -75,7 +75,8 @@ export class ModuleNotEnabledError extends Error {
 
 /**
  * For MCP tool handlers, via registerGatedTool. Reads the moduleEnabled flag computed
- * once per request in verifyToken rather than re-querying the database per tool call.
+ * once per request in the route's buildExtra (see withEpextaMcpAuth in lib/mcp-auth.ts)
+ * rather than re-querying the database per tool call.
  */
 export function assertModuleEnabled(moduleEnabled: boolean, slug: ModuleSlug): void {
   if (!moduleEnabled) throw new ModuleNotEnabledError(slug);

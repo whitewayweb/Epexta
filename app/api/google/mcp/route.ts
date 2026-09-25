@@ -1,10 +1,9 @@
-import type { AuthInfo, InputRequiredResult, ServerContext } from "@modelcontextprotocol/server";
+import type { InputRequiredResult, ServerContext } from "@modelcontextprotocol/server";
 import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprotocol/server";
-import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
-import { getUserOrganisation } from "@/lib/organisation";
-import { getUserByApiKey } from "@/lib/session";
+import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import {
@@ -69,45 +68,30 @@ async function buildMappedSites(
   });
 }
 
-async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
-  if (!bearerToken) return undefined;
+async function buildGoogleSiteHubExtra({ organisationId }: McpCaller): Promise<GoogleSiteHubExtra> {
+  const [googleAnalyticsEnabled, googleSearchConsoleEnabled] = organisationId
+    ? await Promise.all([
+        isModuleEnabled(organisationId, "google-analytics"),
+        isModuleEnabled(organisationId, "google-search-console"),
+      ])
+    : [false, false];
 
-  try {
-    const user = await getUserByApiKey(bearerToken);
-    if (!user) return undefined;
+  const [googleAnalyticsMappedSites, googleSearchConsoleMappedSites] = await Promise.all([
+    googleAnalyticsEnabled && organisationId
+      ? buildMappedSites(organisationId, listAnalyticsMappingsForOrganisation)
+      : Promise.resolve([]),
+    googleSearchConsoleEnabled && organisationId
+      ? buildMappedSites(organisationId, listSearchConsoleMappingsForOrganisation)
+      : Promise.resolve([]),
+  ]);
 
-    const organisation = await getUserOrganisation(user.id);
-    const organisationId = organisation?.organisationId ?? null;
-
-    const [googleAnalyticsEnabled, googleSearchConsoleEnabled] = organisationId
-      ? await Promise.all([
-          isModuleEnabled(organisationId, "google-analytics"),
-          isModuleEnabled(organisationId, "google-search-console"),
-        ])
-      : [false, false];
-
-    const [googleAnalyticsMappedSites, googleSearchConsoleMappedSites] = await Promise.all([
-      googleAnalyticsEnabled && organisationId
-        ? buildMappedSites(organisationId, listAnalyticsMappingsForOrganisation)
-        : Promise.resolve([]),
-      googleSearchConsoleEnabled && organisationId
-        ? buildMappedSites(organisationId, listSearchConsoleMappingsForOrganisation)
-        : Promise.resolve([]),
-    ]);
-
-    const extra: GoogleSiteHubExtra = {
-      organisationId,
-      googleAnalyticsEnabled,
-      googleAnalyticsMappedSites,
-      googleSearchConsoleEnabled,
-      googleSearchConsoleMappedSites,
-    };
-
-    return { token: bearerToken, clientId: user.id, scopes: [], extra };
-  } catch (error) {
-    console.error("[google-mcp] auth threw an error:", error);
-    return undefined;
-  }
+  return {
+    organisationId,
+    googleAnalyticsEnabled,
+    googleAnalyticsMappedSites,
+    googleSearchConsoleEnabled,
+    googleSearchConsoleMappedSites,
+  };
 }
 
 const siteSelectionSchema = z.object({ siteId: z.string() });
@@ -594,7 +578,8 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
   );
 }
 
-const handler = withMcpAuth(
+const handler = withEpextaMcpAuth(
+  "/api/google/mcp",
   (req) => createGoogleMcpHandler((req.auth?.extra as GoogleSiteHubExtra | undefined) ?? {
     organisationId: null,
     googleAnalyticsEnabled: false,
@@ -602,8 +587,8 @@ const handler = withMcpAuth(
     googleSearchConsoleEnabled: false,
     googleSearchConsoleMappedSites: [],
   })(req),
-  verifyToken,
-  { required: true }
+  buildGoogleSiteHubExtra,
+  "google-mcp"
 );
 
 export const maxDuration = 60;

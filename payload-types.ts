@@ -71,6 +71,10 @@ export interface Config {
     organisations: Organisation;
     'api-keys': ApiKey;
     'module-entitlements': ModuleEntitlement;
+    'oauth-clients': OauthClient;
+    'oauth-authorization-codes': OauthAuthorizationCode;
+    'oauth-grants': OauthGrant;
+    'oauth-tokens': OauthToken;
     'wordpress-connections': WordpressConnection;
     'google-connections': GoogleConnection;
     'google-oauth-states': GoogleOauthState;
@@ -95,6 +99,10 @@ export interface Config {
     organisations: OrganisationsSelect<false> | OrganisationsSelect<true>;
     'api-keys': ApiKeysSelect<false> | ApiKeysSelect<true>;
     'module-entitlements': ModuleEntitlementsSelect<false> | ModuleEntitlementsSelect<true>;
+    'oauth-clients': OauthClientsSelect<false> | OauthClientsSelect<true>;
+    'oauth-authorization-codes': OauthAuthorizationCodesSelect<false> | OauthAuthorizationCodesSelect<true>;
+    'oauth-grants': OauthGrantsSelect<false> | OauthGrantsSelect<true>;
+    'oauth-tokens': OauthTokensSelect<false> | OauthTokensSelect<true>;
     'wordpress-connections': WordpressConnectionsSelect<false> | WordpressConnectionsSelect<true>;
     'google-connections': GoogleConnectionsSelect<false> | GoogleConnectionsSelect<true>;
     'google-oauth-states': GoogleOauthStatesSelect<false> | GoogleOauthStatesSelect<true>;
@@ -219,6 +227,114 @@ export interface ModuleEntitlement {
   moduleSlug: 'wordpress' | 'google-search-console' | 'google-analytics';
   enabled?: boolean | null;
   source?: ('manual' | 'billing' | 'migration') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * OAuth clients (CIMD cache + dynamically registered). Read-only here - see lib/oauth/clients.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-clients".
+ */
+export interface OauthClient {
+  id: number;
+  clientId: string;
+  registrationType: 'cimd' | 'dcr';
+  clientName: string;
+  clientUri?: string | null;
+  logoUri?: string | null;
+  redirectUris:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * CIMD only: when the cached metadata document must be refetched.
+   */
+  metadataExpiresAt?: string | null;
+  lastUsedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Short-lived OAuth authorization codes. Server-only - see lib/oauth/authorize.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-authorization-codes".
+ */
+export interface OauthAuthorizationCode {
+  id: number;
+  hashedCode: string;
+  client: number | OauthClient;
+  user: number | User;
+  organisation: number | Organisation;
+  resource: string;
+  scopes:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  redirectUri: string;
+  codeChallenge: string;
+  expiresAt: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * OAuth consent grants (connected apps). To disconnect one, set Revoked at - see lib/oauth/tokens.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-grants".
+ */
+export interface OauthGrant {
+  id: number;
+  user: number | User;
+  organisation: number | Organisation;
+  client: number | OauthClient;
+  resource: string;
+  /**
+   * Always empty today; kept so scoped grants can be added without a migration.
+   */
+  scopes:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  lastUsedAt?: string | null;
+  revokedAt?: string | null;
+  revokedReason?: ('user' | 'admin' | 'client' | 'refresh_reuse' | 'code_replay' | 'member_removed') | null;
+  /**
+   * Who revoked it, for a user or administrator revocation.
+   */
+  revokedBy?: (number | null) | User;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Hashed OAuth access/refresh tokens. Server-only - see lib/oauth/tokens.ts.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-tokens".
+ */
+export interface OauthToken {
+  id: number;
+  hashedToken: string;
+  grant: number | OauthGrant;
+  tokenType: 'access' | 'refresh';
+  issuedFrom?: string | null;
+  expiresAt: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -625,6 +741,22 @@ export interface PayloadLockedDocument {
         value: number | ModuleEntitlement;
       } | null)
     | ({
+        relationTo: 'oauth-clients';
+        value: number | OauthClient;
+      } | null)
+    | ({
+        relationTo: 'oauth-authorization-codes';
+        value: number | OauthAuthorizationCode;
+      } | null)
+    | ({
+        relationTo: 'oauth-grants';
+        value: number | OauthGrant;
+      } | null)
+    | ({
+        relationTo: 'oauth-tokens';
+        value: number | OauthToken;
+      } | null)
+    | ({
         relationTo: 'wordpress-connections';
         value: number | WordpressConnection;
       } | null)
@@ -777,6 +909,69 @@ export interface ModuleEntitlementsSelect<T extends boolean = true> {
   moduleSlug?: T;
   enabled?: T;
   source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-clients_select".
+ */
+export interface OauthClientsSelect<T extends boolean = true> {
+  clientId?: T;
+  registrationType?: T;
+  clientName?: T;
+  clientUri?: T;
+  logoUri?: T;
+  redirectUris?: T;
+  metadataExpiresAt?: T;
+  lastUsedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-authorization-codes_select".
+ */
+export interface OauthAuthorizationCodesSelect<T extends boolean = true> {
+  hashedCode?: T;
+  client?: T;
+  user?: T;
+  organisation?: T;
+  resource?: T;
+  scopes?: T;
+  redirectUri?: T;
+  codeChallenge?: T;
+  expiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-grants_select".
+ */
+export interface OauthGrantsSelect<T extends boolean = true> {
+  user?: T;
+  organisation?: T;
+  client?: T;
+  resource?: T;
+  scopes?: T;
+  lastUsedAt?: T;
+  revokedAt?: T;
+  revokedReason?: T;
+  revokedBy?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "oauth-tokens_select".
+ */
+export interface OauthTokensSelect<T extends boolean = true> {
+  hashedToken?: T;
+  grant?: T;
+  tokenType?: T;
+  issuedFrom?: T;
+  expiresAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

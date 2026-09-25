@@ -22,7 +22,7 @@ No delete capability is exposed (for posts, media, categories, or tags) — inte
 2. `npm install`
 3. `npm run dev`
 4. Sign up at `http://localhost:3000/wordpress/connect`. On your WordPress site: **Users → Profile → Application Passwords**, generate one for a user with publishing permissions, then paste the site URL, username, and Application Password into the connection form.
-5. Generate an API key from the same page.
+5. Connect an MCP client: in Claude (Settings → Connectors → Add custom connector) or ChatGPT, add the connector URL shown at `/settings/connected-apps`, then sign in to Epexta and approve. For scripts or clients that only accept a static bearer token, generate an API key at `/settings/api-key` instead.
 
 ## Deploying
 
@@ -33,7 +33,9 @@ vercel env add ENCRYPTION_KEY
 vercel --prod
 ```
 
-Register the resulting `https://<your-project>.vercel.app/api/wordpress/mcp` URL as an MCP connector in ChatGPT's Developer Mode, using the API key from `/wordpress/connect` as the bearer token. Each organisation's API key only ever reaches that organisation's own connected WordPress site.
+Set `APP_URL` to the deployment's canonical origin (e.g. `https://app.example.com`) - it's the OAuth issuer and the prefix of every connector URL, so it must match what users paste into Claude/ChatGPT exactly - and `CRON_SECRET` for the daily OAuth cleanup job (`vercel.json`).
+
+Add the resulting `https://<your-domain>/api/wordpress/mcp` URL as a connector in Claude or ChatGPT; the client discovers Epexta's OAuth server from it, and the user signs in and approves (see `OAUTH_CONNECTOR_PLAN.md`). API keys from `/settings/api-key` still work as a static bearer token. Either way, a credential only ever reaches its own organisation's connected WordPress site.
 
 ## Notes
 
@@ -111,7 +113,7 @@ Register the resulting `https://<your-project>.vercel.app/api/wordpress/mcp` URL
 - `create_post`, `update_post`, and `check_seo` return a heuristic on-page SEO analysis (`seoCheck`) modeled on Yoast's core checks, since Yoast's own analysis only runs inside the WordPress block editor UI and never executes for posts created via the REST API. Use `check_seo` standalone to validate a draft before calling `create_post`.
 - All posts default to `draft` status — nothing goes live without an explicit publish.
 - No delete capability is exposed for any resource type — this plugin can only create, read, and update.
-- Multi-tenant: each organisation connects its own WordPress site and generates its own API key at `/wordpress/connect` — one API key never reaches another organisation's site.
+- Multi-tenant: each organisation connects its own WordPress site; each member connects via OAuth (`/settings/connected-apps`) or their own API key (`/settings/api-key`) — neither ever reaches another organisation's site.
 
 ## Troubleshooting
 

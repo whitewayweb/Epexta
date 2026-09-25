@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, Copy, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +23,7 @@ import {
   type CreateApiKeyState,
   type DeleteApiKeyState,
 } from "@/lib/api-key-actions";
+import { formatDate } from "@/lib/format-date";
 
 interface ApiKeyRow {
   id: string;
@@ -30,12 +33,6 @@ interface ApiKeyRow {
 
 const createInitialState: CreateApiKeyState = { error: null, key: null };
 const deleteInitialState: DeleteApiKeyState = { error: null, success: false };
-
-function formatDate(iso: string): string {
-  // A fixed locale (not the browser's) keeps this identical between server and
-  // client render output, avoiding a hydration mismatch.
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-}
 
 // Generated in the browser with the Web Crypto API so the key is already visible
 // (and copyable) the moment the dialog opens, instead of after a round trip to the
@@ -62,26 +59,6 @@ function DeleteKeyButton({ keyId, onDeleted }: { keyId: string; onDeleted: (id: 
   );
 }
 
-function CopyKeyButton({ rawKey }: { rawKey: string }) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon-sm"
-      aria-label="Copy key"
-      onClick={async () => {
-        await navigator.clipboard.writeText(rawKey);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-    >
-      {copied ? <Check /> : <Copy />}
-    </Button>
-  );
-}
-
 function CreateKeyForm({
   onCreated,
   onDone,
@@ -103,7 +80,7 @@ function CreateKeyForm({
       <code className="block flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
         {rawKey}
       </code>
-      <CopyKeyButton rawKey={rawKey} />
+      <CopyButton value={rawKey} label="Copy key" />
     </div>
   );
 
@@ -133,7 +110,7 @@ function CreateKeyForm({
         {keyField}
         <div className="grid gap-1.5">
           <Label htmlFor="api-key-name">Name</Label>
-          <Input id="api-key-name" name="name" required autoFocus placeholder="e.g. ChatGPT connector" />
+          <Input id="api-key-name" name="name" required autoFocus placeholder="e.g. Publishing script" />
         </div>
       </div>
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
@@ -178,7 +155,11 @@ export function ApiKeysTable({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Paste a key into ChatGPT&apos;s custom connector setup as the bearer token.
+          For scripts and MCP clients that take a static bearer token. To add Epexta to Claude or ChatGPT, use{" "}
+          <Link href="/settings/connected-apps" className="font-medium text-foreground underline underline-offset-4">
+            Connected apps
+          </Link>{" "}
+          instead.
         </p>
         <CreateKeyDialog
           onCreated={(key) => {
@@ -189,7 +170,7 @@ export function ApiKeysTable({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
 
       {keys.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-          No API keys yet. Add one to connect ChatGPT.
+          No API keys yet.
         </p>
       ) : (
         <Table>

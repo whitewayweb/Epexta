@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getPayloadClient } from "./payload";
 import { createOrganisationForUser } from "./organisation";
+import { safeRedirectPath } from "./redirects";
 import { clearSessionCookie, setSessionCookie } from "./session";
 
 export interface AuthState {
@@ -19,12 +20,6 @@ function firstIssueMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid input.";
 }
 
-/** Only ever redirect to a same-site path, so a `redirectTo` field can't be used as an open redirect. */
-function safeRedirectTarget(raw: FormDataEntryValue | null): string {
-  const value = typeof raw === "string" ? raw.trim() : "";
-  return value.startsWith("/") && !value.startsWith("//") ? value : "/";
-}
-
 export async function signupAction(_prevState: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = credentialsSchema.safeParse({
     email: formData.get("email"),
@@ -34,7 +29,7 @@ export async function signupAction(_prevState: AuthState, formData: FormData): P
     return { error: firstIssueMessage(parsed.error) };
   }
   const { email, password } = parsed.data;
-  const redirectTo = safeRedirectTarget(formData.get("redirectTo"));
+  const redirectTo = safeRedirectPath(formData.get("redirectTo"));
   const organisationNameRaw = formData.get("organisationName");
   const organisationName = typeof organisationNameRaw === "string" ? organisationNameRaw.trim() : "";
 
@@ -68,7 +63,7 @@ export async function loginAction(_prevState: AuthState, formData: FormData): Pr
     return { error: firstIssueMessage(parsed.error) };
   }
   const { email, password } = parsed.data;
-  const redirectTo = safeRedirectTarget(formData.get("redirectTo"));
+  const redirectTo = safeRedirectPath(formData.get("redirectTo"));
 
   const payload = await getPayloadClient();
   try {
@@ -85,5 +80,5 @@ export async function loginAction(_prevState: AuthState, formData: FormData): Pr
 
 export async function logoutAction(formData: FormData): Promise<void> {
   await clearSessionCookie();
-  redirect(safeRedirectTarget(formData.get("redirectTo")));
+  redirect(safeRedirectPath(formData.get("redirectTo")));
 }

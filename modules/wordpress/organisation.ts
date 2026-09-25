@@ -1,4 +1,5 @@
 import { getPayloadClient } from "@/lib/payload";
+import { relationshipId } from "@/lib/relationship";
 import { MODULES } from "@/lib/modules";
 import { referencingCapabilitiesForWordPressConnection } from "@/modules/google-connections/registry";
 import type { WordpressConnection as WordPressConnectionDoc } from "@/payload-types";
@@ -94,9 +95,7 @@ export async function getWordPressConnection(
     .catch(() => null);
   if (!doc) return null;
 
-  // `organisation` comes back as a populated doc or a raw id depending on depth.
-  const docOrgId = typeof doc.organisation === "object" ? String((doc.organisation as { id: unknown }).id) : String(doc.organisation);
-  if (docOrgId !== organisationId) return null;
+  if (relationshipId(doc.organisation) !== organisationId) return null;
 
   return toConnection(doc);
 }

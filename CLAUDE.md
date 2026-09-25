@@ -11,19 +11,31 @@ See [plan.md](plan.md) for the phased roadmap.
   account creation is a platform concern, not a module one), `members.ts` +
   `organisation.ts` (generic organisation/membership model), `crypto.ts` (AES-256-GCM
   for secrets at rest), `modules.ts` (module registry), `entitlements.ts` (per-organisation
-  module on/off state — see `MODULE_ENTITLEMENTS_PLAN.md`).
-- `components/auth/` — the platform-wide `LoginForm`/`SignupForm` used by
-  `/login` and `/signup`. Modules never render their own login/signup UI; they
-  redirect unauthenticated visitors to `/login?redirectTo=<module path>` (see
-  `app/(frontend)/wordpress/connect/page.tsx`) and get the user back afterwards.
+  module on/off state — see `MODULE_ENTITLEMENTS_PLAN.md`), `mcp-auth.ts` (the one bearer
+  authenticator every MCP route uses — API keys and OAuth access tokens), `oauth/`
+  (Epexta's OAuth authorization server for Claude/ChatGPT connectors — see
+  `OAUTH_CONNECTOR_PLAN.md`; code outside `lib/oauth/` goes through `oauthProvider`
+  in `oauth/provider.ts` only, and the `/oauth/*` + `/.well-known/*` route files just
+  re-export `oauthEndpoints` handlers from `oauth/endpoints.ts`), `app-url.ts` (canonical origin: OAuth issuer and connector
+  URL prefix), and small shared helpers (`collection-access.ts`, `db-transactions.ts`,
+  `db-sql.ts`, `after-response.ts`, `secret-hash.ts`, `relationship.ts`, `redirects.ts`).
+- `components/auth/` — the platform-wide `LoginForm`/`SignupForm` and the `AuthCard`
+  shell used by `/login`, `/signup`, and the OAuth consent screen (`/oauth/authorize`).
+  Modules never render their own login/signup UI; they redirect unauthenticated
+  visitors to `/login?redirectTo=<module path>` (see
+  `app/(frontend)/(app)/wordpress/connect/page.tsx`) and get the user back afterwards.
 - `collections/` — **only** truly platform-wide Payload collections (`Users`,
-  `Organisations`, `ModuleEntitlements`). Never put a module-specific collection here.
+  `Organisations`, `ModuleEntitlements`, `ApiKeys`, and the four `OAuth*` collections).
+  Never put a module-specific collection here.
 - `modules/<name>/` — everything specific to one integration: its own Payload
   collection (referencing `organisation` via a relationship, never re-implementing
   membership itself), its API client, server actions, and UI components.
 - Adding a new module means creating `modules/<name>/`, registering its collection
   in `payload.config.ts`, and adding routes under `/api/<name>/mcp` and `/<name>/connect`
-  — nothing in `lib/`, `collections/`, or other modules should need to change.
+  — nothing in `lib/`, `collections/`, or other modules should need to change. Its
+  `mcpPath` in `lib/modules.ts` automatically becomes an OAuth protected resource
+  (`lib/oauth/resources.ts`), so the route works as a Claude/ChatGPT connector as long
+  as it's wrapped in `withEpextaMcpAuth` (below).
 - Every new module's first PR must wire up entitlement enforcement from day one
   (see `lib/entitlements.ts`, `MODULE_ENTITLEMENTS_PLAN.md`), not retrofit it later:
   1. Every page under the module's `overviewPath`/`connectPath` calls
@@ -33,9 +45,12 @@ See [plan.md](plan.md) for the phased roadmap.
      doing anything module-specific (the one exception: an action with its own lazy
      organisation-creation fallback checks entitlement *after* resolving/creating the
      organisation, not before).
-  3. `app/api/<name>/mcp/route.ts` computes `moduleEnabled` once in `verifyToken` and
-     registers every tool through a `registerGatedTool` wrapper (see the WordPress
-     route for the pattern) — never a raw `server.registerTool` call, since a tool
+  3. `app/api/<name>/mcp/route.ts` is wrapped in `withEpextaMcpAuth(mcpPath, ...)`
+     (`lib/mcp-auth.ts`) — never mcp-handler's `withMcpAuth` directly, since only the
+     wrapper points the route's 401 at its own OAuth metadata and checks OAuth
+     tokens' audience. It computes `moduleEnabled` once per request in the `buildExtra`
+     it passes there, and registers every tool through a `registerGatedTool` wrapper
+     (see the WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
      that reads `extra` directly instead of going through a per-tool helper can
      otherwise skip a per-handler convention entirely.
   4. `components/app-sidebar.tsx`'s module list is filtered by `enabledModuleSlugs`,
@@ -144,7 +159,7 @@ primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@lates
     Hub's `google-search-console` + `google-analytics`) may share one MCP route —
     see `GOOGLE_PERFORMANCE_PLAN.md`'s "One Google Site Hub MCP endpoint, not one
     per module." This is a transport-layer decision only: `group` still carries no
-    authorization meaning (`lib/modules.ts`), `verifyToken` still computes
+    authorization meaning (`lib/modules.ts`), `buildExtra` still computes
     `moduleEnabled` per slug independently, every tool still goes through
     `registerGatedTool` gated on its own module's slug, and tool names must be
     capability-specific (`list_google_analytics_mapped_sites`, not
@@ -155,6 +170,13 @@ primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@lates
 - Payload's own REST API lives at `/api/cms/*` (`app/api/cms/[...slug]/route.ts`).
 - Payload's admin panel is `/admin`.
 - Each module's onboarding UI is `/<name>/connect`.
+- Epexta's OAuth authorization server is platform-level: `/oauth/authorize` (consent
+  page), `/oauth/token`, `/oauth/register`, `/oauth/revoke`, plus discovery at
+  `/.well-known/oauth-authorization-server` and one
+  `/.well-known/oauth-protected-resource/<mcpPath>` per MCP route (no root document —
+  see `OAUTH_CONNECTOR_PLAN.md`). Users manage connected apps at
+  `/settings/connected-apps`. Platform cron jobs live under `/api/cron/*`, protected by
+  `CRON_SECRET` and scheduled in `vercel.json`.
 - Auth is platform-level, not module-level: `/login` and `/signup`
   (`app/(frontend)/login`, `app/(frontend)/signup`) are the only account
   creation/sign-in pages in the app. A module's `/<name>/connect` page redirects an
@@ -222,6 +244,12 @@ implement from memory or from a summary of a summary:
 - **Prompts** — https://modelcontextprotocol.io/specification/2026-07-28/server/prompts
   (only relevant once a module exposes `prompts/*`, none do yet)
 - **Discover** — https://modelcontextprotocol.io/specification/2026-07-28/server/discover
+- **Authorization** — https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
+  and its `authorization-server-discovery`, `client-registration`, and
+  `security-considerations` sub-pages (everything under `lib/oauth/` and
+  `lib/mcp-auth.ts`), plus Claude's connector auth guide
+  (https://claude.com/docs/connectors/building/authentication) — Claude's and ChatGPT's
+  client behaviour differs from the generic spec in places
 - **Elicitation** — https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation
   (form vs. url mode, the multi-round-trip `inputRequired`/`inputResponses` flow used by
   `resolveConnection`; re-read this before touching that function)
@@ -271,7 +299,26 @@ already an authenticated superadmin. The very first user ever created becomes
   pattern — check `getUserOrganisation(user.id).role` before any mutation).
 - Never put a secret (API key, token) in a URL, query string, or redirect. A
   newly-generated API key is shown once via React state in the page that
-  generated it (see `ApiKeyPanel.tsx`), never round-tripped through a URL.
+  generated it (see `components/settings/api-keys-table.tsx`), never round-tripped
+  through a URL. The one protocol-mandated exception is the OAuth authorization code
+  in `/oauth/authorize`'s redirect: single-use, 60-second, PKCE-bound (`lib/oauth/`).
+- Bearer secrets (API keys, OAuth codes and tokens) are stored only as SHA-256 digests
+  (`lib/secret-hash.ts`), never reversibly. Collections holding them use
+  `serverOnlyAccess` (`lib/collection-access.ts`): all access goes through their `lib/`
+  helpers with `overrideAccess: true`, never through a relaxed `access` rule. Security
+  state holding *no* secret that support needs to see (OAuth grants and clients) uses
+  `supportReadableAccess` instead: superadmin read-only in `/admin`, plus whatever narrow
+  write a collection hook explicitly allows (grants: revoke only).
+- Raw SQL (`lib/db-sql.ts`) bypasses Payload hooks and access rules. Use it only for a
+  hot-path read or a bulk delete the local API can't do efficiently, with a test that
+  proves it against the real schema. Everything else stays on the local API.
+- An OAuth grant is pinned to one user, organisation, client, and MCP resource, and
+  every MCP request re-checks it (revocation, organisation membership) and the
+  module entitlements — nothing authorization-relevant is baked into a token, so
+  access changes take effect on the next request. Removing a member also revokes their
+  grants immediately (`collections/Organisations.ts` `afterChange`), and every
+  revocation records its reason and, for a person, `revokedBy`. OAuth audit events go
+  through `lib/oauth/audit.ts` (ids only, never a secret).
 - **No delete tools.** No MCP tool in any module should expose destructive
   operations (deleting posts, media, users, etc.) — this is a deliberate, standing
   constraint, not an oversight. Keep every module's blast radius to create/read/update.
@@ -319,6 +366,8 @@ a parallel structure.
   via Vercel Marketplace/Neon — Neon's integration also creates a separate branch +
   `DATABASE_URL` per environment, so Production and Preview never share a database),
   `PAYLOAD_SECRET`, `ENCRYPTION_KEY` (32-byte hex —
-  `openssl rand -hex 32`). See `.env.local.example`.
-- Changing an MCP route's URL breaks any already-registered ChatGPT connector —
+  `openssl rand -hex 32`), `APP_URL` (canonical origin — the OAuth issuer; changing it
+  invalidates every connected app), `CRON_SECRET`. See `.env.local.example`.
+- Changing an MCP route's URL breaks any already-registered Claude/ChatGPT connector
+  — and every OAuth grant for it, since tokens are bound to the route's exact URL —
   flag this explicitly before renaming a module's route path.
