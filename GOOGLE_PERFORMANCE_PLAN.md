@@ -47,7 +47,7 @@ mapping model later once real customer data depends on it.
 free-text grouping key, e.g. `"google-site-hub"`), used purely for navigation.
 It carries no authorization meaning — entitlement, connection, and mapping
 data are all still keyed by the module's own slug, never by the group.
-`components/app-sidebar.tsx` renders one "Google Site Hub" section containing
+`buildAppNav` (`components/app-nav.ts`) gives the sidebar one "Google Site Hub" section containing
 whichever child modules are enabled for the organisation, the same way it
 already filters by `enabledModuleSlugs` — grouping only changes how enabled
 modules are presented, not which ones are enabled.

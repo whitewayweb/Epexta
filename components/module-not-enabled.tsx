@@ -1,4 +1,5 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Lock } from "lucide-react";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 /**
  * Shown in place of a module's normal page content when
@@ -7,10 +8,14 @@ import { Card, CardContent } from "@/components/ui/card";
  */
 export function ModuleNotEnabled({ moduleName }: { moduleName: string }) {
   return (
-    <Card>
-      <CardContent className="py-10 text-center text-sm text-muted-foreground">
-        {moduleName} isn&apos;t included in your organisation&apos;s plan. Contact us to enable it.
-      </CardContent>
-    </Card>
+    <Empty className="border">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Lock />
+        </EmptyMedia>
+        <EmptyTitle>{moduleName} isn&apos;t on your plan</EmptyTitle>
+        <EmptyDescription>Contact us to add it to your organisation.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent } from "react";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,21 +23,15 @@ export function SeoProviderPreferenceForm({
   seoProviderPreference: SeoProviderPreference;
 }) {
   const [state, formAction, pending] = useActionState(updateSeoProviderPreferenceAction, initialState);
-  const stopPropagation = (event: MouseEvent | KeyboardEvent) => event.stopPropagation();
 
   return (
-    <form
-      action={formAction}
-      onClick={stopPropagation}
-      onKeyDown={stopPropagation}
-      className="flex flex-wrap items-center gap-2"
-    >
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="connectionId" value={connectionId} />
       {/* Keyed on the server value so a revalidated re-render after saving remounts the
           (uncontrolled) Select with the new defaultValue instead of warning about changing
           an already-initialized uncontrolled component's default. */}
       <Select key={seoProviderPreference} name="seoProviderPreference" defaultValue={seoProviderPreference} items={PREFERENCE_LABELS}>
-        <SelectTrigger id={`seoProviderPreference-${connectionId}`} size="sm">
+        <SelectTrigger id={`seoProviderPreference-${connectionId}`} size="sm" className="flex-1">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

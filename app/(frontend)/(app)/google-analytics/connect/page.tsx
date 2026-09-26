@@ -1,13 +1,19 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listConnectionsForCapability } from "@/modules/google-connections";
-import { ConnectionsPanel } from "@/modules/google-analytics/ConnectionsPanel";
+import { ConnectionsPanel } from "@/modules/google-connections/ConnectionsPanel";
+import {
+  connectGoogleAction,
+  disconnectGoogleAction,
+  reconnectGoogleAction,
+  revokeGoogleAction,
+} from "@/modules/google-analytics/actions";
+import { MappingsTable } from "@/modules/google-connections/MappingsTable";
 import { MappingForm } from "@/modules/google-analytics/MappingForm";
 import { listMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
@@ -42,23 +48,28 @@ export default async function GoogleAnalyticsConnectPage() {
   const mappedConnectionIds = new Set(mappings.map((m) => m.wordpressConnectionId));
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6">
-      <Link
-        href={OVERVIEW_PATH}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Analytics overview
-      </Link>
-
-      <h1 className="text-2xl font-semibold tracking-tight">Connect Google Analytics</h1>
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <PageHeader
+        back={{ href: OVERVIEW_PATH, label: "Google Analytics" }}
+        title="Set up Google Analytics"
+        description="Connect the Google account that can see your GA4 properties, then map each WordPress site to one."
+      />
 
       <Card>
         <CardHeader>
           <CardTitle>Google account</CardTitle>
         </CardHeader>
         <CardContent>
-          <ConnectionsPanel connections={connections} />
+          <ConnectionsPanel
+            connections={connections}
+            productName="Analytics"
+            actions={{
+              connect: connectGoogleAction,
+              reconnect: reconnectGoogleAction,
+              revoke: revokeGoogleAction,
+              disconnect: disconnectGoogleAction,
+            }}
+          />
         </CardContent>
       </Card>
 
@@ -68,16 +79,20 @@ export default async function GoogleAnalyticsConnectPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {mappings.length > 0 && (
-            <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {mappings.map((mapping) => {
-                const site = sites.find((s) => s.connectionId === mapping.wordpressConnectionId);
-                return (
-                  <li key={mapping.mappingId}>
-                    {site ? site.label || site.siteUrl : "Unknown site"} → {mapping.ga4PropertyId}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="overflow-hidden rounded-lg border">
+              <MappingsTable
+                propertyHeading="GA4 property"
+                rows={mappings.map((mapping) => {
+                  const site = sites.find((s) => s.connectionId === mapping.wordpressConnectionId);
+                  return {
+                    id: mapping.mappingId,
+                    siteLabel: site ? site.label || site.siteUrl : "Unknown site",
+                    property: mapping.ga4PropertyId,
+                    status: mapping.status,
+                  };
+                })}
+              />
+            </div>
           )}
           <MappingForm
             wordpressConnections={sites.filter((s) => !mappedConnectionIds.has(s.connectionId))}

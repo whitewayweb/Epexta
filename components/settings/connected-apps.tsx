@@ -37,18 +37,33 @@ function DisconnectButton({
   onDisconnected: (id: string) => void;
 }) {
   const [state, formAction, pending] = useActionState(disconnectAppAction, disconnectInitialState);
+  // Disconnecting can't be undone from here (the app has to be approved again), so it takes a second click.
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     if (state.success) onDisconnected(connectionId);
   }, [state.success, connectionId, onDisconnected]);
 
+  if (!confirming) {
+    return (
+      <Button variant="outline" size="sm" className="shrink-0" onClick={() => setConfirming(true)}>
+        <Unplug />
+        Disconnect
+      </Button>
+    );
+  }
+
   return (
-    <form action={formAction} className="flex shrink-0 items-center gap-2">
-      {state.error && <span className="text-xs text-destructive">{state.error}</span>}
+    <form action={formAction} className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      <span className={`text-xs ${state.error ? "text-destructive" : "text-muted-foreground"}`}>
+        {state.error ?? "Disconnect this app now?"}
+      </span>
       <input type="hidden" name="connectionId" value={connectionId} />
       <input type="hidden" name="scope" value={scope} />
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>
-        <Unplug />
+      <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => setConfirming(false)}>
+        Cancel
+      </Button>
+      <Button type="submit" variant="destructive" size="sm" disabled={pending}>
         {pending ? "Disconnecting…" : "Disconnect"}
       </Button>
     </form>
@@ -67,7 +82,7 @@ function AppRow({
   onDisconnected: (id: string) => void;
 }) {
   return (
-    <li className="flex items-center gap-3 py-3">
+    <li className="flex flex-wrap items-center gap-3 py-3.5 sm:flex-nowrap">
       <div
         aria-hidden
         className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-semibold text-muted-foreground"

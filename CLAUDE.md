@@ -53,9 +53,10 @@ See [plan.md](plan.md) for the phased roadmap.
      (see the WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
      that reads `extra` directly instead of going through a per-tool helper can
      otherwise skip a per-handler convention entirely.
-  4. `components/app-sidebar.tsx`'s module list is filtered by `enabledModuleSlugs`,
-     already passed down from `app/(frontend)/(app)/layout.tsx` — no per-module
-     change needed there as long as the module is in `lib/modules.ts`'s registry.
+  4. The signed-in navigation (sidebar, breadcrumb, ⌘K menu) comes from `buildAppNav` in
+     `components/app-nav.ts`, filtered by `enabledModuleSlugs` passed down from
+     `app/(frontend)/(app)/layout.tsx` — no per-module change needed there as long as
+     the module is in `lib/modules.ts`'s registry (add its icon to `MODULE_ICONS`).
 
 ## Scalability and future evolution
 
@@ -144,7 +145,15 @@ Never write raw `style={{ ... }}` objects or unstyled native `<button>`/`<input>
 applies to new module UIs too (e.g. a future module's `/connect` page must look like
 `app/(frontend)/wordpress/connect/page.tsx`, not the plain HTML it started as). If a needed
 primitive doesn't exist yet under `components/ui/`, add it via `npx shadcn@latest add
-<name>` rather than hand-rolling markup.
+<name>` rather than hand-rolling markup. Keep `components/ui/` (and `hooks/use-mobile.ts`)
+exactly as the CLI installs them; style through `className` from the calling component.
+
+Every signed-in page opens with `PageHeader` (`components/page-header.tsx`), shows a
+missing-data state with shadcn's `Empty`, and colours a state (connected, needs
+attention, failed) with `StatusBadge` (`components/status-badge.tsx`, using the
+`success`/`warning`/`destructive` tokens) rather than the brand colour. Dark mode is
+Tailwind's `dark` class, toggled by `components/theme.ts` — use theme tokens, never a
+fixed colour, so both themes work.
 
 ## Route naming
 

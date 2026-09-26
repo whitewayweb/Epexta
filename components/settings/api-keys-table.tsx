@@ -1,10 +1,10 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { KeyRound, Plus, Trash2 } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,8 +77,8 @@ function CreateKeyForm({
   }, [state.key]);
 
   const keyField = (
-    <div className="flex items-center gap-2">
-      <code className="block flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
+    <div className="flex min-w-0 items-center gap-2">
+      <code className="block min-w-0 flex-1 break-all rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
         {rawKey}
       </code>
       <CopyButton value={rawKey} label="Copy key" />
@@ -139,7 +140,7 @@ function CreateKeyDialog({ onCreated }: { onCreated: (key: ApiKeyRow) => void })
     >
       <DialogTrigger render={<Button size="sm" />}>
         <Plus />
-        Add new key
+        Create key
       </DialogTrigger>
       <DialogContent>
         <CreateKeyForm key={formKey} onCreated={onCreated} onDone={() => setOpen(false)} />
@@ -152,41 +153,44 @@ export function ApiKeysTable({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
   const [keys, setKeys] = useState(initialKeys);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          For scripts and MCP clients that take a static bearer token. To add Epexta to Claude or ChatGPT, use{" "}
-          <Link href="/settings/connected-apps" className="font-medium text-foreground underline underline-offset-4">
-            Connected apps
-          </Link>{" "}
-          instead.
-        </p>
-        <CreateKeyDialog
-          onCreated={(key) => {
-            setKeys((prev) => [key, ...prev]);
-          }}
-        />
-      </div>
+    <Card className="gap-0 py-0">
+      <CardHeader className="border-b py-4">
+        <CardTitle>Your keys</CardTitle>
+        <CardDescription>Each key acts as you, with your role in your organisation.</CardDescription>
+        <CardAction>
+          <CreateKeyDialog
+            onCreated={(key) => {
+              setKeys((prev) => [key, ...prev]);
+            }}
+          />
+        </CardAction>
+      </CardHeader>
 
       {keys.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-          No API keys yet.
-        </p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <KeyRound />
+            </EmptyMedia>
+            <EmptyTitle>No API keys yet</EmptyTitle>
+            <EmptyDescription>Create one for a script or tool that sends a bearer token.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="pl-4">Name</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead className="w-px" />
+              <TableHead className="w-px pr-4" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {keys.map((key) => (
               <TableRow key={key.id}>
-                <TableCell className="font-medium">{key.name}</TableCell>
+                <TableCell className="pl-4 font-medium">{key.name}</TableCell>
                 <TableCell className="text-muted-foreground">{formatDate(key.createdAt)}</TableCell>
-                <TableCell>
+                <TableCell className="pr-4">
                   <DeleteKeyButton
                     keyId={key.id}
                     onDeleted={(id) => {
@@ -199,6 +203,6 @@ export function ApiKeysTable({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
           </TableBody>
         </Table>
       )}
-    </div>
+    </Card>
   );
 }

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/page-header";
 import { ConnectedApps } from "@/components/settings/connected-apps";
 import { ConnectAppDialog, type ConnectorLink } from "@/components/settings/connector-setup";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,15 +27,11 @@ export default async function ConnectedAppsPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Connected apps</h1>
-          <p className="text-sm text-muted-foreground">
-            Apps using Epexta on your behalf. Disconnecting one stops it straight away.
-          </p>
-        </div>
-        {connectors.length > 0 && <ConnectAppDialog connectors={connectors} />}
-      </div>
+      <PageHeader
+        title="Connected apps"
+        description="AI apps using Epexta on your behalf. Disconnecting one stops it straight away."
+        actions={connectors.length > 0 && <ConnectAppDialog connectors={connectors} />}
+      />
 
       <Card>
         <CardContent>

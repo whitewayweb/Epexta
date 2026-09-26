@@ -1,13 +1,19 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listConnectionsForCapability } from "@/modules/google-connections";
-import { ConnectionsPanel } from "@/modules/google-search-console/ConnectionsPanel";
+import { ConnectionsPanel } from "@/modules/google-connections/ConnectionsPanel";
+import {
+  connectGoogleAction,
+  disconnectGoogleAction,
+  reconnectGoogleAction,
+  revokeGoogleAction,
+} from "@/modules/google-search-console/actions";
+import { MappingsTable } from "@/modules/google-connections/MappingsTable";
 import { MappingForm } from "@/modules/google-search-console/MappingForm";
 import { listMappingsForOrganisation } from "@/modules/google-search-console/mappings";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
@@ -42,23 +48,28 @@ export default async function GoogleSearchConsoleConnectPage() {
   const mappedConnectionIds = new Set(mappings.map((m) => m.wordpressConnectionId));
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6">
-      <Link
-        href={OVERVIEW_PATH}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Search Console overview
-      </Link>
-
-      <h1 className="text-2xl font-semibold tracking-tight">Connect Google Search Console</h1>
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <PageHeader
+        back={{ href: OVERVIEW_PATH, label: "Google Search Console" }}
+        title="Set up Google Search Console"
+        description="Connect the Google account that can see your Search Console properties, then map each WordPress site to one."
+      />
 
       <Card>
         <CardHeader>
           <CardTitle>Google account</CardTitle>
         </CardHeader>
         <CardContent>
-          <ConnectionsPanel connections={connections} />
+          <ConnectionsPanel
+            connections={connections}
+            productName="Search Console"
+            actions={{
+              connect: connectGoogleAction,
+              reconnect: reconnectGoogleAction,
+              revoke: revokeGoogleAction,
+              disconnect: disconnectGoogleAction,
+            }}
+          />
         </CardContent>
       </Card>
 
@@ -68,16 +79,20 @@ export default async function GoogleSearchConsoleConnectPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {mappings.length > 0 && (
-            <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {mappings.map((mapping) => {
-                const site = sites.find((s) => s.connectionId === mapping.wordpressConnectionId);
-                return (
-                  <li key={mapping.mappingId}>
-                    {site ? site.label || site.siteUrl : "Unknown site"} → {mapping.searchConsolePropertyUrl}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="overflow-hidden rounded-lg border">
+              <MappingsTable
+                propertyHeading="Search Console property"
+                rows={mappings.map((mapping) => {
+                  const site = sites.find((s) => s.connectionId === mapping.wordpressConnectionId);
+                  return {
+                    id: mapping.mappingId,
+                    siteLabel: site ? site.label || site.siteUrl : "Unknown site",
+                    property: mapping.searchConsolePropertyUrl,
+                    status: mapping.status,
+                  };
+                })}
+              />
+            </div>
           )}
           <MappingForm
             wordpressConnections={sites.filter((s) => !mappedConnectionIds.has(s.connectionId))}

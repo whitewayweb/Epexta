@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import type React from "react";
+import { AppHeader } from "@/components/app-header";
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getEnabledModules } from "@/lib/entitlements";
-import { getUserOrganisation } from "@/lib/organisation";
+import { getOrganisationName, getUserOrganisation } from "@/lib/organisation";
 import { getCurrentUser } from "@/lib/session";
 
 /**
@@ -12,16 +14,24 @@ import { getCurrentUser } from "@/lib/session";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   const organisation = user ? await getUserOrganisation(user.id) : null;
-  const enabledModuleSlugs = organisation ? await getEnabledModules(organisation.organisationId) : [];
+  const [enabledModuleSlugs, organisationName, cookieStore] = await Promise.all([
+    organisation ? getEnabledModules(organisation.organisationId) : Promise.resolve([]),
+    organisation ? getOrganisationName(organisation.organisationId) : Promise.resolve(null),
+    cookies(),
+  ]);
+  const isAdmin = organisation?.role === "admin";
 
   return (
-    <SidebarProvider>
-      <AppSidebar email={user?.email ?? ""} enabledModuleSlugs={enabledModuleSlugs} />
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center border-b border-border/60 px-4">
-          <SidebarTrigger />
-        </header>
-        <div className="flex-1 p-6">{children}</div>
+    // The sidebar's own cookie, so a collapsed sidebar stays collapsed across page loads.
+    <SidebarProvider defaultOpen={cookieStore.get("sidebar_state")?.value !== "false"}>
+      <AppSidebar
+        email={user?.email ?? ""}
+        organisation={organisation && organisationName ? { name: organisationName, role: organisation.role } : null}
+        enabledModuleSlugs={enabledModuleSlugs}
+      />
+      <SidebarInset className="min-w-0">
+        <AppHeader enabledModuleSlugs={enabledModuleSlugs} isAdmin={isAdmin} />
+        <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

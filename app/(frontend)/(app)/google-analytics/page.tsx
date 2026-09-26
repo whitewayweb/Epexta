@@ -1,13 +1,15 @@
-import { Plus } from "lucide-react";
+import { ChartColumn, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listMappingsForOrganisation } from "@/modules/google-analytics/mappings";
+import { MappingsTable } from "@/modules/google-connections/MappingsTable";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 
 const OVERVIEW_PATH = "/google-analytics";
@@ -32,58 +34,63 @@ export default async function GoogleAnalyticsOverviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Google Analytics</h1>
-        <div className="flex items-center gap-2">
-          {mappings.length > 0 && (
-            <Button variant="outline" render={<Link href="/google-analytics/performance" />}>
-              View performance
-            </Button>
-          )}
-          {isAdmin && (
-            <Button render={<Link href={CONNECT_PATH} />}>
-              <Plus />
-              Manage connection
-            </Button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Google Analytics"
+        description="Each WordPress site reports through its GA4 property. AI apps use this to answer questions about how readers engage with your posts."
+        actions={
+          <>
+            {mappings.length > 0 && (
+              <Button variant="outline" render={<Link href="/google-analytics/performance" />}>
+                <ChartColumn />
+                Post performance
+              </Button>
+            )}
+            {isAdmin && (
+              <Button render={<Link href={CONNECT_PATH} />}>
+                <Settings2 />
+                Manage connection
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {mappings.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {!organisation ? (
-              "You're not part of an organisation yet."
-            ) : isAdmin ? (
-              <>
-                No site mapped to a GA4 property yet.{" "}
-                <Link href={CONNECT_PATH} className="text-primary underline underline-offset-4">
-                  Set one up
-                </Link>
-                .
-              </>
-            ) : (
-              "Your organisation admin hasn't set up Analytics reporting yet."
-            )}
-          </CardContent>
-        </Card>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <ChartColumn />
+            </EmptyMedia>
+            <EmptyTitle>No sites mapped yet</EmptyTitle>
+            <EmptyDescription>
+              {!organisation
+                ? "You're not part of an organisation yet."
+                : isAdmin
+                  ? "Connect a Google account, then map each WordPress site to its GA4 property."
+                  : "Your organisation admin hasn't set up Analytics reporting yet."}
+            </EmptyDescription>
+          </EmptyHeader>
+          {isAdmin && (
+            <EmptyContent>
+              <Button render={<Link href={CONNECT_PATH} />}>Set up Analytics</Button>
+            </EmptyContent>
+          )}
+        </Empty>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {mappings.map((mapping) => {
-            const site = wordpressConnections.find((c) => c.connectionId === mapping.wordpressConnectionId);
-            return (
-              <Card key={mapping.mappingId}>
-                <CardContent className="flex flex-col gap-2 py-4">
-                  <span className="text-sm font-medium">{site ? site.label || site.siteUrl : "Unknown site"}</span>
-                  <span className="text-xs text-muted-foreground">{mapping.ga4PropertyId}</span>
-                  <Badge variant={mapping.status === "active" ? "default" : "destructive"} className="w-fit">
-                    {mapping.status.replace("_", " ")}
-                  </Badge>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <Card className="py-0">
+          <MappingsTable
+            propertyHeading="GA4 property"
+            rows={mappings.map((mapping) => {
+              const site = wordpressConnections.find((c) => c.connectionId === mapping.wordpressConnectionId);
+              return {
+                id: mapping.mappingId,
+                siteLabel: site ? site.label || site.siteUrl : "Unknown site",
+                property: mapping.ga4PropertyId,
+                status: mapping.status,
+              };
+            })}
+          />
+        </Card>
       )}
     </div>
   );

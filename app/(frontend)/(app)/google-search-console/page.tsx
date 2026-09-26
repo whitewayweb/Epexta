@@ -1,13 +1,15 @@
-import { Plus } from "lucide-react";
+import { ChartColumn, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listMappingsForOrganisation } from "@/modules/google-search-console/mappings";
+import { MappingsTable } from "@/modules/google-connections/MappingsTable";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 
 const OVERVIEW_PATH = "/google-search-console";
@@ -32,58 +34,63 @@ export default async function GoogleSearchConsoleOverviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Google Search Console</h1>
-        <div className="flex items-center gap-2">
-          {mappings.length > 0 && (
-            <Button variant="outline" render={<Link href="/google-search-console/performance" />}>
-              View performance
-            </Button>
-          )}
-          {isAdmin && (
-            <Button render={<Link href={CONNECT_PATH} />}>
-              <Plus />
-              Manage connection
-            </Button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Google Search Console"
+        description="Each WordPress site reports through the Search Console property that covers it. AI apps use this to answer questions about your posts' search performance."
+        actions={
+          <>
+            {mappings.length > 0 && (
+              <Button variant="outline" render={<Link href="/google-search-console/performance" />}>
+                <ChartColumn />
+                Post performance
+              </Button>
+            )}
+            {isAdmin && (
+              <Button render={<Link href={CONNECT_PATH} />}>
+                <Settings2 />
+                Manage connection
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {mappings.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {!organisation ? (
-              "You're not part of an organisation yet."
-            ) : isAdmin ? (
-              <>
-                No site mapped to a Search Console property yet.{" "}
-                <Link href={CONNECT_PATH} className="text-primary underline underline-offset-4">
-                  Set one up
-                </Link>
-                .
-              </>
-            ) : (
-              "Your organisation admin hasn't set up Search Console reporting yet."
-            )}
-          </CardContent>
-        </Card>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <ChartColumn />
+            </EmptyMedia>
+            <EmptyTitle>No sites mapped yet</EmptyTitle>
+            <EmptyDescription>
+              {!organisation
+                ? "You're not part of an organisation yet."
+                : isAdmin
+                  ? "Connect a Google account, then map each WordPress site to its Search Console property."
+                  : "Your organisation admin hasn't set up Search Console reporting yet."}
+            </EmptyDescription>
+          </EmptyHeader>
+          {isAdmin && (
+            <EmptyContent>
+              <Button render={<Link href={CONNECT_PATH} />}>Set up Search Console</Button>
+            </EmptyContent>
+          )}
+        </Empty>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {mappings.map((mapping) => {
-            const site = wordpressConnections.find((c) => c.connectionId === mapping.wordpressConnectionId);
-            return (
-              <Card key={mapping.mappingId}>
-                <CardContent className="flex flex-col gap-2 py-4">
-                  <span className="text-sm font-medium">{site ? site.label || site.siteUrl : "Unknown site"}</span>
-                  <span className="text-xs text-muted-foreground">{mapping.searchConsolePropertyUrl}</span>
-                  <Badge variant={mapping.status === "active" ? "default" : "destructive"} className="w-fit">
-                    {mapping.status.replace("_", " ")}
-                  </Badge>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <Card className="py-0">
+          <MappingsTable
+            propertyHeading="Search Console property"
+            rows={mappings.map((mapping) => {
+              const site = wordpressConnections.find((c) => c.connectionId === mapping.wordpressConnectionId);
+              return {
+                id: mapping.mappingId,
+                siteLabel: site ? site.label || site.siteUrl : "Unknown site",
+                property: mapping.searchConsolePropertyUrl,
+                status: mapping.status,
+              };
+            })}
+          />
+        </Card>
       )}
     </div>
   );

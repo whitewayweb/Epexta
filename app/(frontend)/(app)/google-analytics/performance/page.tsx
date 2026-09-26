@@ -1,12 +1,18 @@
+import Link from "next/link";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
+import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listMappingsForOrganisation } from "@/modules/google-analytics/mappings";
-import { PerformanceLookupForm } from "@/modules/google-analytics/PerformanceLookupForm";
+import { PerformanceLookupForm } from "@/modules/google-connections/PerformanceLookupForm";
+import { getPerformanceAction } from "@/modules/google-analytics/actions";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 
 const OVERVIEW_PATH = "/google-analytics/performance";
+const MODULE_PATH = "/google-analytics";
 
 export default async function GoogleAnalyticsPerformancePage() {
   const user = await requireUser(OVERVIEW_PATH);
@@ -24,22 +30,41 @@ export default async function GoogleAnalyticsPerformancePage() {
       ])
     : [[], []];
 
-  // A function prop can't cross the server-to-client boundary (only plain data can) -
-  // resolve labels into a plain map here instead of passing the lookup itself down.
-  const siteLabels: Record<string, string> = {};
-  for (const site of wordpressConnections) {
-    siteLabels[site.connectionId] = site.label || site.siteUrl;
-  }
+  const siteLabel = (connectionId: string) => {
+    const site = wordpressConnections.find((connection) => connection.connectionId === connectionId);
+    return site ? site.label || site.siteUrl : "Unknown site";
+  };
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Post performance</h1>
+      <PageHeader
+        back={{ href: MODULE_PATH, label: "Google Analytics" }}
+        title="Post performance"
+        description="The numbers for one post, the same ones your AI apps see when they ask Google Analytics."
+      />
       {mappings.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No site is mapped to a GA4 property yet. Set one up from the Google Analytics overview page first.
-        </p>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>No site is mapped to a GA4 property yet.</EmptyTitle>
+            <EmptyDescription>Map a site from the Google Analytics page first.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" render={<Link href={MODULE_PATH} />}>
+              Go to Google Analytics
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
-        <PerformanceLookupForm mappings={mappings} siteLabels={siteLabels} />
+        <PerformanceLookupForm
+          sites={mappings.map((mapping) => ({ id: mapping.wordpressConnectionId, label: siteLabel(mapping.wordpressConnectionId) }))}
+          action={getPerformanceAction}
+          metrics={[
+            { key: "activeUsers", label: "Active users", format: "count" },
+            { key: "sessions", label: "Sessions", format: "count" },
+            { key: "engagedSessions", label: "Engaged sessions", format: "count" },
+            { key: "keyEvents", label: "Key events", format: "count" },
+          ]}
+        />
       )}
     </div>
   );

@@ -1,7 +1,6 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
+import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
@@ -37,18 +36,12 @@ export default async function ConnectPage({
   const editingConnection = edit && organisation ? await getWordPressConnection(organisation.organisationId, edit) : null;
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-6">
-      <Link
-        href={OVERVIEW_PATH}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Connected sites
-      </Link>
-
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {editingConnection ? "Edit connection" : "Add a WordPress site"}
-      </h1>
+    <div className="mx-auto flex max-w-xl flex-col gap-6">
+      <PageHeader
+        back={{ href: OVERVIEW_PATH, label: "WordPress sites" }}
+        title={editingConnection ? "Edit connection" : "Add a WordPress site"}
+        description="Epexta signs in to WordPress with an Application Password, which you can create under Users → Profile in your WordPress admin."
+      />
 
       <Card>
         <CardHeader>

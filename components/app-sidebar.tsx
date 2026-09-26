@@ -1,12 +1,24 @@
 "use client";
 
-import { KeyRound, LayoutDashboard, Plug, Users } from "lucide-react";
+import { ChevronsUpDown, KeyRound, LogOut, Monitor, Moon, Sun } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRef } from "react";
+import { buildAppNav, isNavItemActive } from "@/components/app-nav";
 import { LogoMark } from "@/components/site/logo-mark";
-import { WordPressIcon } from "@/components/site/wordpress-icon";
-import { Button } from "@/components/ui/button";
-import type { ModuleDefinition, ModuleSlug } from "@/lib/modules";
+import { setTheme, type Theme, useTheme } from "@/components/theme";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -18,119 +30,155 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 import { logoutAction } from "@/lib/auth-actions";
-import { MODULES } from "@/lib/modules";
+import type { OrganisationRole } from "@/lib/members";
+import type { ModuleSlug } from "@/lib/modules";
 
-function ModuleIcon({ slug, className }: { slug: ModuleDefinition["slug"]; className?: string }) {
-  if (slug === "wordpress") return <WordPressIcon className={className} />;
-  return <LayoutDashboard className={className} />;
+export interface SidebarOrganisation {
+  name: string;
+  role: OrganisationRole;
 }
 
-const SETTINGS_LINKS = [
-  { href: "/settings/members", label: "Members", icon: Users },
-  { href: "/settings/connected-apps", label: "Connected apps", icon: Plug },
-  { href: "/settings/api-key", label: "API keys", icon: KeyRound },
+const THEMES: { value: Theme; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
 ];
 
-// group is a free-text navigation key on the registry (lib/modules.ts) - it carries no
-// authorization meaning, only how enabled modules are presented. This is the only place
-// a group key is translated into a human label.
-const GROUP_LABELS: Record<string, string> = {
-  "google-site-hub": "Google Site Hub",
-};
+function initials(text: string): string {
+  const words = text.split(/[\s@._-]+/).filter(Boolean);
+  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+function AccountMenu({ email }: { email: string }) {
+  const theme = useTheme();
+  const logoutForm = useRef<HTMLFormElement>(null);
+
+  return (
+    <>
+      <form ref={logoutForm} action={logoutAction} hidden />
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
+          <Avatar className="size-8">
+            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials(email)}</AvatarFallback>
+          </Avatar>
+          <span className="min-w-0 flex-1 truncate text-sm">{email}</span>
+          <ChevronsUpDown className="ml-auto text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" className="min-w-56">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Theme</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+              {THEMES.map((option) => (
+                <DropdownMenuRadioItem key={option.value} value={option.value}>
+                  <option.icon />
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href="/settings/api-key" />}>
+            <KeyRound />
+            API keys
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => logoutForm.current?.requestSubmit()}>
+            <LogOut />
+            Log out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
 
 export function AppSidebar({
   email,
+  organisation,
   enabledModuleSlugs,
 }: {
   email: string;
+  organisation: SidebarOrganisation | null;
   enabledModuleSlugs: readonly ModuleSlug[];
 }) {
   const pathname = usePathname();
-  const visibleModules = MODULES.filter((module) => enabledModuleSlugs.includes(module.slug));
-
-  function moduleGroup(module: (typeof MODULES)[number]): string | undefined {
-    return "group" in module ? module.group : undefined;
-  }
-
-  const ungroupedModules = visibleModules.filter((module) => !moduleGroup(module));
-  const groupKeys = Array.from(new Set(visibleModules.map(moduleGroup).filter((g): g is string => Boolean(g))));
-
-  function renderModuleLink(module: (typeof MODULES)[number]) {
-    return (
-      <SidebarMenuItem key={module.slug}>
-        <SidebarMenuButton
-          isActive={pathname === module.overviewPath || pathname.startsWith(`${module.connectPath}`)}
-          className="hover:bg-sidebar-accent/60"
-          render={<Link href={module.overviewPath} />}
-        >
-          <ModuleIcon slug={module.slug} />
-          <span>{module.name}</span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    );
-  }
+  const nav = buildAppNav(enabledModuleSlugs);
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <Link href="/" className="flex items-center gap-2.5 px-2 py-1.5 text-sm font-semibold tracking-tight">
-          <LogoMark />
-          epexta
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="gap-3">
+        <Link
+          href="/"
+          className="flex h-8 items-center gap-2.5 px-2 text-[15px] font-semibold tracking-tight group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
+          <LogoMark className="w-[18px] shrink-0" />
+          <span className="group-data-[collapsible=icon]:hidden">epexta</span>
         </Link>
+        {organisation && (
+          // Shows which organisation the user is working in. Not a switcher: a user belongs to
+          // one organisation today (see getUserOrganisation in lib/organisation.ts).
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                tooltip={organisation.name}
+                className="border border-sidebar-border bg-background shadow-xs hover:bg-background group-data-[collapsible=icon]:border-0"
+                render={<Link href="/settings/members" />}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">
+                  {initials(organisation.name)}
+                </span>
+                <span className="grid min-w-0 flex-1 leading-tight">
+                  <span className="truncate font-semibold">{organisation.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {organisation.role === "admin" ? "Admin" : "Member"}
+                  </span>
+                </span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
-        {ungroupedModules.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Modules</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>{ungroupedModules.map(renderModuleLink)}</SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {groupKeys.map((groupKey) => (
-          <SidebarGroup key={groupKey}>
-            <SidebarGroupLabel>{GROUP_LABELS[groupKey] ?? groupKey}</SidebarGroupLabel>
+        {nav.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel className="text-[11px] tracking-wider uppercase">{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {visibleModules.filter((module) => moduleGroup(module) === groupKey).map(renderModuleLink)}
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      isActive={isNavItemActive(item, pathname)}
+                      tooltip={item.label}
+                      className="data-active:bg-background data-active:shadow-xs data-active:ring-1 data-active:ring-sidebar-border [&[data-active]>svg]:text-primary"
+                      render={<Link href={item.href} />}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {SETTINGS_LINKS.map((link) => (
-                <SidebarMenuItem key={link.href}>
-                  <SidebarMenuButton
-                    isActive={pathname === link.href}
-                    className="hover:bg-sidebar-accent/60"
-                    render={<Link href={link.href} />}
-                  >
-                    <link.icon />
-                    <span>{link.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <p className="truncate px-2 text-xs text-muted-foreground">{email}</p>
-        <form action={logoutAction}>
-          <Button type="submit" variant="outline" size="sm" className="w-full">
-            Log out
-          </Button>
-        </form>
+      <SidebarFooter className="border-t border-sidebar-border">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <AccountMenu email={email} />
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }
