@@ -57,6 +57,10 @@ See [plan.md](plan.md) for the phased roadmap.
      never a bare `{ instructions }`. Clients like Claude name connector tools by an
      opaque id (`mcp__<uuid>__list_sites`), so the Epexta name in `serverInfo` and at
      the start of the instructions is the only thing linking the tools to the product.
+     `registerGatedTool` passes each config through `withToolIdentity(moduleSlug, ...)`
+     too, prefixing the description with "Epexta <Module>:" - Claude's tool search
+     matches descriptions, not serverInfo, so that prefix is what makes "Epexta" find
+     every tool.
   4. The signed-in navigation (sidebar, breadcrumb, ⌘K menu) comes from `buildAppNav` in
      `components/app-nav.ts`, filtered by `enabledModuleSlugs` passed down from
      `app/(frontend)/(app)/layout.tsx` — no per-module change needed there as long as

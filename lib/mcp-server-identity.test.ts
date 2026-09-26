@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULES } from "@/lib/modules";
-import { mcpServerIdentity } from "@/lib/mcp-server-identity";
+import { mcpServerIdentity, withToolIdentity } from "@/lib/mcp-server-identity";
 
 describe("mcpServerIdentity", () => {
   it("names a single-module route after Epexta and that module", () => {
@@ -27,5 +27,19 @@ describe("mcpServerIdentity", () => {
 
   it("rejects a path with no registered module", () => {
     expect(() => mcpServerIdentity("/api/unknown/mcp")).toThrow();
+  });
+});
+
+describe("withToolIdentity", () => {
+  it("prefixes the description with Epexta and the tool's own module", () => {
+    const config = withToolIdentity("google-analytics", { title: "List Sites", description: "List mapped sites." });
+
+    expect(config).toEqual({ title: "List Sites", description: "Epexta Google Analytics: List mapped sites." });
+  });
+
+  it("leaves a config without a description unchanged", () => {
+    const config: { title: string; description?: string } = { title: "List Sites" };
+
+    expect(withToolIdentity("wordpress", config)).toEqual({ title: "List Sites" });
   });
 });

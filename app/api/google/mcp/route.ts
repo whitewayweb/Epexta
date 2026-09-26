@@ -4,7 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
-import { mcpServerIdentity } from "@/lib/mcp-server-identity";
+import { mcpServerIdentity, withToolIdentity } from "@/lib/mcp-server-identity";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import {
@@ -265,7 +265,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
     (server) => {
       function registerGatedTool(moduleSlug: "google-analytics" | "google-search-console", logPrefix: string): typeof server.registerTool {
         return ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
-          return server.registerTool(name, config as never, (async (...handlerArgs: unknown[]) => {
+          return server.registerTool(name, withToolIdentity(moduleSlug, config as { description?: string }) as never, (async (...handlerArgs: unknown[]) => {
             try {
               const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
               const moduleExtra = extraOf(ctx);

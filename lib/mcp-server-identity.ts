@@ -1,5 +1,5 @@
 import { getAppUrl } from "@/lib/app-url";
-import { MODULES } from "@/lib/modules";
+import { MODULES, type ModuleSlug } from "@/lib/modules";
 
 const PRODUCT_NAME = "Epexta";
 const SERVER_VERSION = "1.0.0";
@@ -32,4 +32,18 @@ export function mcpServerIdentity(mcpPath: string, instructions: readonly string
     },
     instructions: [`These are ${PRODUCT_NAME}'s ${moduleNames} tools.`, ...instructions].join(" "),
   };
+}
+
+/**
+ * Prefixes a tool's description with the Epexta module it belongs to. Clients that
+ * search deferred tools (Claude's tool search) match on tool names and descriptions,
+ * not serverInfo or instructions, so this is what lets "Epexta" find every tool.
+ * Applied by each route's registerGatedTool, so no tool can be registered without it.
+ */
+export function withToolIdentity<C extends { description?: string }>(moduleSlug: ModuleSlug, config: C): C {
+  const moduleName = MODULES.find((m) => m.slug === moduleSlug)?.name;
+  if (!moduleName) throw new Error(`No module is registered with slug ${moduleSlug}.`);
+
+  const prefix = `${PRODUCT_NAME} ${moduleName}:`;
+  return config.description ? { ...config, description: `${prefix} ${config.description}` } : config;
 }

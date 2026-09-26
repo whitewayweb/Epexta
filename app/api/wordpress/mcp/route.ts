@@ -4,7 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
-import { mcpServerIdentity } from "@/lib/mcp-server-identity";
+import { mcpServerIdentity, withToolIdentity } from "@/lib/mcp-server-identity";
 import {
   createWordPressClient,
   WordPressApiError,
@@ -297,7 +297,7 @@ const rawHandler = createMcpHandler(
   // the call to `handler`, which runs after this check, so a throw here would
   // otherwise escape uncaught.
   const registerGatedTool: typeof server.registerTool = ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
-    return server.registerTool(name, config as never, (async (...handlerArgs: unknown[]) => {
+    return server.registerTool(name, withToolIdentity("wordpress", config as { description?: string }) as never, (async (...handlerArgs: unknown[]) => {
       try {
         const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
         const moduleEnabled = Boolean(
