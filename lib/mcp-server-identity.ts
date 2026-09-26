@@ -30,6 +30,6 @@ export function mcpServerIdentity(mcpPath: string, instructions: readonly string
       description: modules.map((m) => m.description).join(" "),
       websiteUrl: getAppUrl(),
     },
-    instructions: [`These are the ${title} tools from ${PRODUCT_NAME}.`, ...instructions].join(" "),
+    instructions: [`These are ${PRODUCT_NAME}'s ${moduleNames} tools.`, ...instructions].join(" "),
   };
 }

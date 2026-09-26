@@ -4,6 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
+import { mcpServerIdentity } from "@/lib/mcp-server-identity";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import {
@@ -574,7 +575,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
         );
       }
     },
-    { instructions: instructionFragments.join(" ") || undefined }
+    mcpServerIdentity("/api/google/mcp", instructionFragments)
   );
 }
 

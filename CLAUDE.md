@@ -52,7 +52,11 @@ See [plan.md](plan.md) for the phased roadmap.
      it passes there, and registers every tool through a `registerGatedTool` wrapper
      (see the WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
      that reads `extra` directly instead of going through a per-tool helper can
-     otherwise skip a per-handler convention entirely.
+     otherwise skip a per-handler convention entirely. Its `createMcpHandler` options
+     are `mcpServerIdentity(mcpPath, [...instructions])` (`lib/mcp-server-identity.ts`),
+     never a bare `{ instructions }`. Clients like Claude name connector tools by an
+     opaque id (`mcp__<uuid>__list_sites`), so the Epexta name in `serverInfo` and at
+     the start of the instructions is the only thing linking the tools to the product.
   4. The signed-in navigation (sidebar, breadcrumb, ⌘K menu) comes from `buildAppNav` in
      `components/app-nav.ts`, filtered by `enabledModuleSlugs` passed down from
      `app/(frontend)/(app)/layout.tsx` — no per-module change needed there as long as

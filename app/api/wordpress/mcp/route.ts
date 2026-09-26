@@ -4,6 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
+import { mcpServerIdentity } from "@/lib/mcp-server-identity";
 import {
   createWordPressClient,
   WordPressApiError,
@@ -651,20 +652,19 @@ const rawHandler = createMcpHandler(
     }
   );
   },
-  {
-    instructions:
-      "siteId (from list_sites) selects which connected WordPress site a tool acts on - it's shared " +
-      "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, check_seo, " +
-      "get_seo_profile, upload_image, and set_featured_image, so a value obtained from list_sites or " +
-      "list_posts can be reused across calls in the same session. Call list_categories and list_tags " +
-      "before create_post/update_post to see what already exists on that site, since names are matched " +
-      "case-sensitively. create_post and update_post resolve and return the site's SEO provider profile " +
-      "as seoProfile (also available on demand via get_seo_profile); its generationGuidance should inform " +
-      "drafting, and its checks only include plugin-specific rules once that plugin is confirmed active. " +
-      "To put a real image inside a post's body, call upload_image with that post's " +
-      "postId and use the returned media.source_url as an <img> src; upload_image never changes the " +
-      "featured image, so use set_featured_image separately for that.",
-  }
+  mcpServerIdentity("/api/wordpress/mcp", [
+    "siteId (from list_sites) selects which connected WordPress site a tool acts on - it's shared " +
+    "across list_posts, list_categories, list_tags, create_post, update_post, publish_post, check_seo, " +
+    "get_seo_profile, upload_image, and set_featured_image, so a value obtained from list_sites or " +
+    "list_posts can be reused across calls in the same session. Call list_categories and list_tags " +
+    "before create_post/update_post to see what already exists on that site, since names are matched " +
+    "case-sensitively. create_post and update_post resolve and return the site's SEO provider profile " +
+    "as seoProfile (also available on demand via get_seo_profile); its generationGuidance should inform " +
+    "drafting, and its checks only include plugin-specific rules once that plugin is confirmed active. " +
+    "To put a real image inside a post's body, call upload_image with that post's " +
+    "postId and use the returned media.source_url as an <img> src; upload_image never changes the " +
+    "featured image, so use set_featured_image separately for that.",
+  ])
 );
 
 const handler = withEpextaMcpAuth("/api/wordpress/mcp", rawHandler, buildWordPressExtra, "wordpress-mcp");
