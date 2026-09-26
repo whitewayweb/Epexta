@@ -33,6 +33,11 @@ interface WpPostForPerformance {
   modified: string;
 }
 
+interface WpPostForListing {
+  meta?: Record<string, unknown>;
+  [field: string]: unknown;
+}
+
 export interface PostForPerformance {
   postId: number;
   canonicalLink: string;
@@ -258,17 +263,28 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     const qs = new URLSearchParams();
     qs.set("status", params.status ?? "any");
     qs.set("per_page", String(params.perPage ?? 10));
-    qs.set("_fields", "id,title,status,link,date,categories,tags");
+    qs.set("context", "edit");
+    qs.set("_fields", "id,title,status,link,date,categories,tags,meta");
     if (params.search) qs.set("search", params.search);
-    return wpFetch(`/wp/v2/posts?${qs.toString()}`);
+    return wpFetch<WpPostForListing[]>(`/wp/v2/posts?${qs.toString()}`).then((posts) =>
+      posts.map(({ meta, ...post }) => ({
+        ...post,
+        focusKeyphrase: meta?.["_yoast_wpseo_focuskw"] ?? null,
+      }))
+    );
   }
 
   function listCategories() {
     return wpFetch(`/wp/v2/categories?per_page=100&_fields=id,name,slug,count`);
   }
 
-  function listTags() {
-    return wpFetch(`/wp/v2/tags?per_page=100&_fields=id,name,slug,count`);
+  async function listTags() {
+    const tags: WpTerm[] = [];
+    for (let page = 1; ; page += 1) {
+      const pageTags = await wpFetch<WpTerm[]>(`/wp/v2/tags?per_page=100&page=${page}&_fields=id,name,slug,count`);
+      tags.push(...pageTags);
+      if (pageTags.length < 100) return tags;
+    }
   }
 
   async function getPostTitle(postId: number): Promise<string> {

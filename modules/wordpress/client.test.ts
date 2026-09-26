@@ -96,6 +96,49 @@ describe("WordPress category SEO", () => {
   });
 });
 
+describe("WordPress source data lists", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("returns the source Yoast focus keyphrase with post taxonomy IDs", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse([{
+      id: 42,
+      title: { rendered: "Source title" },
+      categories: [3],
+      tags: [7],
+      meta: { _yoast_wpseo_focuskw: "source keyphrase" },
+    }]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const posts = await createWordPressClient(credentials).listPosts({});
+
+    expect(posts).toEqual([{
+      id: 42,
+      title: { rendered: "Source title" },
+      categories: [3],
+      tags: [7],
+      focusKeyphrase: "source keyphrase",
+    }]);
+    expect(fetchMock.mock.calls[0][0]).toContain("context=edit");
+    expect(fetchMock.mock.calls[0][0]).toContain("meta");
+  });
+
+  it("returns tags across WordPress REST pages", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: index + 1, name: `Tag ${index + 1}`, slug: `tag-${index + 1}` }));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(firstPage))
+      .mockResolvedValueOnce(jsonResponse([{ id: 101, name: "Tag 101", slug: "tag-101" }]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tags = await createWordPressClient(credentials).listTags();
+
+    expect(tags).toHaveLength(101);
+    expect(tags.at(-1)).toEqual({ id: 101, name: "Tag 101", slug: "tag-101" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toContain("page=1");
+    expect(fetchMock.mock.calls[1][0]).toContain("page=2");
+  });
+});
+
 function seoProfile(overrides: Partial<SeoProfile> = {}): SeoProfile {
   return {
     providerId: null,

@@ -336,7 +336,7 @@ const rawHandler = createMcpHandler(
     {
       title: "List WordPress Posts",
       description:
-        "List blog posts from a connected WordPress site. Use to check existing posts before creating new ones or to find a post to edit.",
+        "List blog posts from a connected WordPress site, including category and tag IDs and the source Yoast focus keyphrase when available. Use to check existing posts before creating new ones or to find a post to edit.",
       inputSchema: z.object({
               siteId: siteIdSchema,
               status: z
