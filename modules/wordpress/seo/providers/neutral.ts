@@ -31,6 +31,28 @@ export function includesCi(haystack: string | undefined, needle: string): boolea
   return haystack.toLowerCase().includes(needle.toLowerCase());
 }
 
+/** The post title is the page's H1, so body headings start at H2 and never skip a level. */
+function headingStructureCheck(contentHtml: string, wordCount: number): SeoCheck {
+  const id = "neutral:heading-structure";
+  const alignment = "provider-neutral";
+  const levels = [...contentHtml.matchAll(/<h([1-6])(?=[\s>/])/gi)].map((m) => Number(m[1]));
+
+  if (levels.includes(1)) {
+    return { id, status: "bad", message: "The content has an H1. The post title is the H1, so start body sections at H2.", alignment };
+  }
+  let previous = 1;
+  for (const level of levels) {
+    if (level > previous + 1) {
+      return { id, status: "bad", message: `The heading hierarchy skips from H${previous} to H${level}. Nest headings without skipping levels.`, alignment };
+    }
+    previous = level;
+  }
+  if (levels.length === 0 && wordCount >= 600) {
+    return { id, status: "ok", message: "The content has no subheadings. Add H2 sections to help readers scan it.", alignment };
+  }
+  return { id, status: "good", message: "The heading hierarchy is well formed.", alignment };
+}
+
 /**
  * Checks useful regardless of which SEO plugin (if any) is active: content length,
  * links, and image presence. Always run, unlike provider-aligned checks which only
@@ -60,6 +82,8 @@ export function runNeutralChecks(input: SeoCheckInput): SeoCheck[] {
       ? { id: "neutral:links", status: "good", message: "The content includes at least one link.", alignment: "provider-neutral" }
       : { id: "neutral:links", status: "bad", message: "The content has no links. Add an internal or outbound link.", alignment: "provider-neutral" }
   );
+
+  checks.push(headingStructureCheck(input.contentHtml, wordCount));
 
   const images = [...input.contentHtml.matchAll(/<img\s+[^>]*>/gi)];
   if (images.length === 0) {

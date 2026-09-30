@@ -231,6 +231,21 @@ describe("WordPress post content normalisation", () => {
     expect(body.content).toBe('<p>Case study, not evidence, just context.</p><a href="https://example.com/a—b">Read more</a>');
   });
 
+  it("strips scripts, styles, inline styles and event handlers, and demotes H1 to H2", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createWordPressClient(credentials).createPost({
+      title: "A post",
+      contentHtml:
+        '<h1 class="big" style="color:red">Intro</h1><script>alert(1)</script><style>p{}</style><p style="margin:0" onclick="x()">Hi <a href="https://example.com/?a=1">link</a></p></h1>',
+      status: "draft",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.content).toBe('<h2 class="big">Intro</h2><p>Hi <a href="https://example.com/?a=1">link</a></p></h2>');
+  });
+
   it("normalises content when updating a post", async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ id: 99, meta: {} }));
     vi.stubGlobal("fetch", fetchMock);

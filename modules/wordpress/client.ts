@@ -88,14 +88,23 @@ const JPEG_MIME_TYPE = "image/jpeg";
 const LONG_DASH_IN_TEXT = /(?:&(?:mdash|ndash);|&#(?:8211|8212);|&#x(?:2013|2014);|[—–])/gi;
 
 /**
- * Content authored through this MCP uses commas, periods, or parentheses instead
- * of em and en dashes. Restrict the replacement to text nodes so URLs and other
- * HTML attributes are left intact.
+ * Content authored through this MCP is normalised deterministically, since prose
+ * guidance can be ignored: long dashes in text become commas, and the markup is
+ * kept theme-friendly (no scripts, stylesheets, inline styles or event handlers;
+ * the post title is the page's H1, so a body <h1> becomes <h2>). Replacements are
+ * restricted to text nodes or tag markup so URLs in attributes are left intact.
  */
 function normaliseContentHtml(contentHtml: string): string {
   return contentHtml
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
     .split(/(<[^>]*>)/g)
-    .map((part) => (part.startsWith("<") ? part : part.replace(new RegExp(`\\s*${LONG_DASH_IN_TEXT.source}\\s*`, "gi"), ", ")))
+    .map((part) =>
+      part.startsWith("<")
+        ? part
+            .replace(/\s+(?:style|on[a-z]+)\s*=\s*(?:"[^"]*"|'[^']*')/gi, "")
+            .replace(/^<(\/?)h1(?=[\s>/])/i, "<$1h2")
+        : part.replace(new RegExp(`\\s*${LONG_DASH_IN_TEXT.source}\\s*`, "gi"), ", ")
+    )
     .join("");
 }
 
