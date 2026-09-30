@@ -1,10 +1,10 @@
-import type { InputRequiredResult, ServerContext } from "@modelcontextprotocol/server";
+import type { InputRequiredResult, ServerContext, ToolAnnotations } from "@modelcontextprotocol/server";
 import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
-import { mcpServerIdentity, withToolIdentity } from "@/lib/mcp-server-identity";
+import { CREATE_TOOL, mcpServerIdentity, READ_ONLY_TOOL, UPDATE_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
 import {
   createWordPressClient,
   WordPressApiError,
@@ -297,7 +297,7 @@ const rawHandler = createMcpHandler(
   // the call to `handler`, which runs after this check, so a throw here would
   // otherwise escape uncaught.
   const registerGatedTool: typeof server.registerTool = ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
-    return server.registerTool(name, withToolIdentity("wordpress", config as { description?: string }) as never, (async (...handlerArgs: unknown[]) => {
+    return server.registerTool(name, withToolIdentity("wordpress", config as { description?: string; annotations: ToolAnnotations }) as never, (async (...handlerArgs: unknown[]) => {
       try {
         const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
         const moduleEnabled = Boolean(
@@ -315,6 +315,7 @@ const rawHandler = createMcpHandler(
     "list_sites",
     {
       title: "List Connected WordPress Sites",
+      annotations: READ_ONLY_TOOL,
       description:
         "List the WordPress sites connected to this account's organisation. Call this first when several sites are connected, so a siteId can be passed to other tools; otherwise the server will elicit the choice from the user.",
       inputSchema: z.object({}),
@@ -335,6 +336,7 @@ const rawHandler = createMcpHandler(
     "list_posts",
     {
       title: "List WordPress Posts",
+      annotations: READ_ONLY_TOOL,
       description:
         "List blog posts from a connected WordPress site, including category and tag IDs and the source Yoast focus keyphrase when available. Use to check existing posts before creating new ones or to find a post to edit.",
       inputSchema: z.object({
@@ -363,6 +365,7 @@ const rawHandler = createMcpHandler(
     "list_categories",
     {
       title: "List Categories",
+      annotations: READ_ONLY_TOOL,
       description: "List existing categories on a connected WordPress site.",
       inputSchema: z.object({ siteId: siteIdSchema }),
     },
@@ -381,6 +384,7 @@ const rawHandler = createMcpHandler(
     "list_tags",
     {
       title: "List Tags",
+      annotations: READ_ONLY_TOOL,
       description: "List existing tags on a connected WordPress site.",
       inputSchema: z.object({ siteId: siteIdSchema }),
     },
@@ -399,6 +403,7 @@ const rawHandler = createMcpHandler(
     "create_post",
     {
       title: "Create Blog Post",
+      annotations: CREATE_TOOL,
       description:
         "Create a new blog post on a connected WordPress site. Categories and tags are matched by name to existing terms, or created if they don't exist yet. Call list_categories (and list_tags, if relevant) first to see what already exists on the site before choosing names, so posts land in a genuinely fitting category instead of always falling back to the site's default one. A new category receives a description, focus keyphrase, SEO title, and meta description by default; use categorySeo for topic-specific copy. Existing categories are never changed implicitly—use update_category_seo for those. Category Yoast fields require the Epexta category SEO REST bridge documented in README.md; a warning means the category description was saved but Yoast data was not. SEO title/description/focus keyphrase are only written to the site's SEO plugin when get_seo_profile (also resolved automatically and returned as seoProfile here) confirms which plugin is active; call get_seo_profile first if you need to know in advance. Defaults to draft status so nothing goes live without an explicit publish. Set a relevant focusKeyphrase and use it naturally in SEO metadata, the slug, and article content where it fits. Prefer clarity and factual accuracy over keyword placement or density; do not force keywords into the opening, headings, body, or image alt text. " +
         "Before writing, call list_posts to find existing posts on this site that are genuinely relevant to the topic, then include at least one internal link (<a href>) to one of them in the body where it naturally fits; only skip this when no existing post is actually relevant, not because it wasn't checked. Structure the body with H2/H3 subheadings, and use the focus keyphrase naturally in 30-75% of them unless the article is too short to warrant subheadings. Keep seoDescription to 156 characters or fewer so it is not truncated in search results. When an image is appropriate, call upload_image (after this post exists) to host it on this site and use its returned source_url in an <img> tag with accurate descriptive alt text. After building the draft, call check_seo (or read the seoCheck returned by this tool) and fix any reported problems other than image-related ones before treating the post as done, since images are added separately via upload_image/set_featured_image. " +
@@ -471,6 +476,7 @@ const rawHandler = createMcpHandler(
     "update_post",
     {
       title: "Update Blog Post",
+      annotations: UPDATE_TOOL,
       description:
         "Update fields on an existing post: content, categories, tags, SEO meta, slug, or status. Only fields provided are changed. When contentHtml is being rewritten, apply the same standards as create_post: call list_posts first and include at least one relevant internal link when one exists, use the focus keyphrase naturally in 30-75% of H2/H3 subheadings (unless too short for subheadings), keep seoDescription to 156 characters or fewer, and check the returned seoCheck for problems other than image-related ones before finishing. The following writing guidance also applies only when drafting or rewriting content, not for metadata-only edits. " +
         articleWritingGuidance,
@@ -516,6 +522,7 @@ const rawHandler = createMcpHandler(
     "update_category_seo",
     {
       title: "Update Category SEO",
+      annotations: UPDATE_TOOL,
       description:
         "Update an existing category's archive description and Yoast focus keyphrase, SEO title, and meta description. Use list_categories to identify the category. Omitted fields receive sensible defaults based on the existing category name. Requires the Epexta category SEO REST bridge documented in README.md; the returned warnings say if WordPress saved only the description.",
       inputSchema: z.object({
@@ -540,6 +547,7 @@ const rawHandler = createMcpHandler(
     "publish_post",
     {
       title: "Publish Post",
+      annotations: UPDATE_TOOL,
       description: "Change an existing post's status to published.",
       inputSchema: z.object({
               siteId: siteIdSchema,
@@ -562,6 +570,7 @@ const rawHandler = createMcpHandler(
     "check_seo",
     {
       title: "Check SEO",
+      annotations: READ_ONLY_TOOL,
       description:
         "Run an on-page SEO analysis against draft content before publishing, scoped to the connected site's confirmed SEO plugin (provider-neutral checks - content length, links, images - always run; plugin-specific checks such as keyphrase placement only run once get_seo_profile confirms that plugin on this site). Use this before create_post or update_post to catch problems while they're still easy to fix. This does not replace the final readability pass described in generationGuidance when drafting or rewriting content.",
       inputSchema: z.object({
@@ -590,6 +599,7 @@ const rawHandler = createMcpHandler(
     "get_seo_profile",
     {
       title: "Get SEO Provider Profile",
+      annotations: READ_ONLY_TOOL,
       description:
         "Identify which SEO plugin (if any) this connected WordPress site uses, what Epexta can safely read/write for it, and the generation guidance to follow before drafting. create_post, update_post, and check_seo also resolve this automatically and return it in their response as seoProfile, so calling this first is a head start, not a requirement.",
       inputSchema: z.object({ siteId: siteIdSchema }),
@@ -609,6 +619,7 @@ const rawHandler = createMcpHandler(
     "upload_image",
     {
       title: "Upload Image",
+      annotations: CREATE_TOOL,
       description:
         "Convert an image to JPEG and upload it to a post's WordPress media library for use inside the post body - it does not change the post's featured image (use set_featured_image for that). Returns the uploaded media, including source_url; use that URL as the src of an <img> tag in contentHtml via create_post/update_post. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
       inputSchema: imageUploadInputSchema("image.jpg"),
@@ -634,6 +645,7 @@ const rawHandler = createMcpHandler(
     "set_featured_image",
     {
       title: "Set Featured Image",
+      annotations: CREATE_TOOL,
       description:
         "Convert an image to JPEG, upload it, and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given. For images inside the post body instead, use upload_image.",
       inputSchema: imageUploadInputSchema("featured-image.jpg"),

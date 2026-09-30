@@ -1,3 +1,4 @@
+import type { ToolAnnotations } from "@modelcontextprotocol/server";
 import { getAppUrl } from "@/lib/app-url";
 import { MODULES, type ModuleSlug } from "@/lib/modules";
 
@@ -35,12 +36,44 @@ export function mcpServerIdentity(mcpPath: string, instructions: readonly string
 }
 
 /**
+ * Behaviour hints every Epexta MCP tool must declare. An unannotated tool is read by
+ * clients as the worst case per the MCP spec (not read-only, destructive, open-world),
+ * so ChatGPT labels a pure lookup "Public write / Destructive" and may confirm each call.
+ * `withToolIdentity` (below) requires one of these on every tool config, so none can skip it.
+ *
+ * Every Epexta tool talks to a third-party system (a customer's WordPress site, Google),
+ * hence `openWorldHint: true` throughout. No tool deletes anything (see CLAUDE.md), so
+ * writes are never destructive.
+ */
+export const READ_ONLY_TOOL = {
+  readOnlyHint: true,
+  openWorldHint: true,
+} as const satisfies ToolAnnotations;
+
+/** Creates something new each call, so retrying is not a no-op. */
+export const CREATE_TOOL = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const satisfies ToolAnnotations;
+
+/** Sets fields to given values, so repeating the call with the same arguments changes nothing more. */
+export const UPDATE_TOOL = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const satisfies ToolAnnotations;
+
+/**
  * Prefixes a tool's description with the Epexta module it belongs to. Clients that
  * search deferred tools (Claude's tool search) match on tool names and descriptions,
  * not serverInfo or instructions, so this is what lets "Epexta" find every tool.
- * Applied by each route's registerGatedTool, so no tool can be registered without it.
+ * Applied by each route's registerGatedTool, so no tool can be registered without it -
+ * and the config type demands `annotations` (READ_ONLY_TOOL etc. above) for the same reason.
  */
-export function withToolIdentity<C extends { description?: string }>(moduleSlug: ModuleSlug, config: C): C {
+export function withToolIdentity<C extends { description?: string; annotations: ToolAnnotations }>(moduleSlug: ModuleSlug, config: C): C {
   const moduleName = MODULES.find((m) => m.slug === moduleSlug)?.name;
   if (!moduleName) throw new Error(`No module is registered with slug ${moduleSlug}.`);
 

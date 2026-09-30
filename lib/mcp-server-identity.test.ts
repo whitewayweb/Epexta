@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULES } from "@/lib/modules";
-import { mcpServerIdentity, withToolIdentity } from "@/lib/mcp-server-identity";
+import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
 
 describe("mcpServerIdentity", () => {
   it("names a single-module route after Epexta and that module", () => {
@@ -32,14 +32,21 @@ describe("mcpServerIdentity", () => {
 
 describe("withToolIdentity", () => {
   it("prefixes the description with Epexta and the tool's own module", () => {
-    const config = withToolIdentity("google-analytics", { title: "List Sites", description: "List mapped sites." });
+    const config = withToolIdentity("google-analytics", { title: "List Sites", description: "List mapped sites.", annotations: READ_ONLY_TOOL });
 
-    expect(config).toEqual({ title: "List Sites", description: "Epexta Google Analytics: List mapped sites." });
+    expect(config).toEqual({
+      title: "List Sites",
+      description: "Epexta Google Analytics: List mapped sites.",
+      annotations: READ_ONLY_TOOL,
+    });
   });
 
   it("leaves a config without a description unchanged", () => {
-    const config: { title: string; description?: string } = { title: "List Sites" };
+    const config: { title: string; description?: string; annotations: typeof READ_ONLY_TOOL } = {
+      title: "List Sites",
+      annotations: READ_ONLY_TOOL,
+    };
 
-    expect(withToolIdentity("wordpress", config)).toEqual({ title: "List Sites" });
+    expect(withToolIdentity("wordpress", config)).toEqual({ title: "List Sites", annotations: READ_ONLY_TOOL });
   });
 });

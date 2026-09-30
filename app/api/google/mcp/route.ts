@@ -1,10 +1,10 @@
-import type { InputRequiredResult, ServerContext } from "@modelcontextprotocol/server";
+import type { InputRequiredResult, ServerContext, ToolAnnotations } from "@modelcontextprotocol/server";
 import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
-import { mcpServerIdentity, withToolIdentity } from "@/lib/mcp-server-identity";
+import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import {
@@ -265,7 +265,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
     (server) => {
       function registerGatedTool(moduleSlug: "google-analytics" | "google-search-console", logPrefix: string): typeof server.registerTool {
         return ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
-          return server.registerTool(name, withToolIdentity(moduleSlug, config as { description?: string }) as never, (async (...handlerArgs: unknown[]) => {
+          return server.registerTool(name, withToolIdentity(moduleSlug, config as { description?: string; annotations: ToolAnnotations }) as never, (async (...handlerArgs: unknown[]) => {
             try {
               const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
               const moduleExtra = extraOf(ctx);
@@ -286,6 +286,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "list_google_analytics_mapped_sites",
           {
             title: "List Analytics-Mapped Sites",
+            annotations: READ_ONLY_TOOL,
             description:
               "List the WordPress sites with an active GA4 mapping for this organisation. Call this first when several sites are mapped.",
             inputSchema: z.object({}),
@@ -304,6 +305,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "get_analytics_performance",
           {
             title: "Get Analytics Performance",
+            annotations: READ_ONLY_TOOL,
             description:
               "Report GA4 metrics (active users, sessions, engaged sessions, key events) for one WordPress post over a date range. Defaults to the trailing 28 days.",
             inputSchema: z.object({
@@ -336,6 +338,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "compare_analytics_periods",
           {
             title: "Compare Analytics Periods",
+            annotations: READ_ONLY_TOOL,
             description:
               "Compare GA4 metrics for one WordPress post between two equal-length periods, e.g. the latest 28 days versus the previous 28. Defaults to that comparison.",
             inputSchema: z.object({
@@ -368,6 +371,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "get_site_analytics_performance",
           {
             title: "Get Site-Wide Analytics Performance",
+            annotations: READ_ONLY_TOOL,
             description:
               "Report GA4 metrics (active users, sessions, engaged sessions, key events) for an entire mapped WordPress site over a date range, not one post. Defaults to the trailing 28 days.",
             inputSchema: z.object({
@@ -399,6 +403,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "compare_site_analytics_periods",
           {
             title: "Compare Site-Wide Analytics Periods",
+            annotations: READ_ONLY_TOOL,
             description:
               "Compare GA4 metrics for an entire mapped WordPress site (not one post) between two equal-length periods, e.g. the latest 28 days versus the previous 28. Defaults to that comparison.",
             inputSchema: z.object({
@@ -434,6 +439,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "list_search_console_mapped_sites",
           {
             title: "List Search-Console-Mapped Sites",
+            annotations: READ_ONLY_TOOL,
             description:
               "List the WordPress sites with an active Search Console mapping for this organisation. Call this first when several sites are mapped.",
             inputSchema: z.object({}),
@@ -452,6 +458,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "get_search_console_performance",
           {
             title: "Get Search Console Performance",
+            annotations: READ_ONLY_TOOL,
             description:
               "Report Search Console metrics (clicks, impressions, CTR, average position) for one WordPress post over a date range. Defaults to the trailing 28 days.",
             inputSchema: z.object({
@@ -484,6 +491,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "compare_search_console_periods",
           {
             title: "Compare Search Console Periods",
+            annotations: READ_ONLY_TOOL,
             description:
               "Compare Search Console metrics for one WordPress post between two equal-length periods, e.g. the latest 28 days versus the previous 28. Defaults to that comparison.",
             inputSchema: z.object({
@@ -516,6 +524,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "get_site_search_console_performance",
           {
             title: "Get Site-Wide Search Console Performance",
+            annotations: READ_ONLY_TOOL,
             description:
               "Report Search Console metrics (clicks, impressions, CTR, average position) for an entire mapped property over a date range, not one post. Defaults to the trailing 28 days.",
             inputSchema: z.object({
@@ -547,6 +556,7 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
           "compare_site_search_console_periods",
           {
             title: "Compare Site-Wide Search Console Periods",
+            annotations: READ_ONLY_TOOL,
             description:
               "Compare Search Console metrics for an entire mapped property (not one post) between two equal-length periods, e.g. the latest 28 days versus the previous 28. Defaults to that comparison.",
             inputSchema: z.object({

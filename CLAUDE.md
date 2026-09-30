@@ -57,6 +57,9 @@ See [plan.md](plan.md) for the phased roadmap.
      never a bare `{ instructions }`. Clients like Claude name connector tools by an
      opaque id (`mcp__<uuid>__list_sites`), so the Epexta name in `serverInfo` and at
      the start of the instructions is the only thing linking the tools to the product.
+     Every tool config must declare `annotations` (`READ_ONLY_TOOL`/`CREATE_TOOL`/`UPDATE_TOOL`
+     in `lib/mcp-server-identity.ts`; `withToolIdentity`'s type enforces it) - unannotated,
+     clients like ChatGPT treat a pure lookup as a destructive public write.
      `registerGatedTool` passes each config through `withToolIdentity(moduleSlug, ...)`
      too, prefixing the description with "Epexta <Module>:" - Claude's tool search
      matches descriptions, not serverInfo, so that prefix is what makes "Epexta" find
