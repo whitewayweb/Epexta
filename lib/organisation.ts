@@ -60,8 +60,8 @@ export async function getOrganisationName(organisationId: string): Promise<strin
 
 /**
  * Creates a new organisation with this user as its sole admin. If no name is given (or it's
- * blank), defaults to the local part of the user's email so every organisation gets a usable
- * display name regardless of which flow created it.
+ * blank), defaults to the user's full name, else the local part of their email, so every
+ * organisation gets a usable display name regardless of which flow created it.
  */
 export async function createOrganisationForUser(userId: string, name?: string): Promise<string> {
   const payload = await getPayloadClient();
@@ -70,7 +70,7 @@ export async function createOrganisationForUser(userId: string, name?: string): 
   let resolvedName = trimmed;
   if (!resolvedName) {
     const user = await payload.findByID({ collection: "users", id: userId, overrideAccess: true });
-    resolvedName = user.email.split("@")[0];
+    resolvedName = user.name?.trim() || user.email.split("@")[0];
   }
 
   const doc = await payload.create({
@@ -84,6 +84,7 @@ export async function createOrganisationForUser(userId: string, name?: string): 
 export interface PopulatedMember {
   userId: string;
   email: string;
+  name: string | null;
   role: OrganisationRole;
 }
 
@@ -100,6 +101,7 @@ export async function getOrganisationMembers(organisationId: string): Promise<Po
   return members.map((m) => ({
     userId: memberUserId(m),
     email: typeof m.user === "object" ? String(m.user.email ?? "") : "(unknown)",
+    name: typeof m.user === "object" ? m.user.name?.trim() || null : null,
     role: m.role,
   }));
 }

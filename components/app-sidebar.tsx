@@ -52,7 +52,7 @@ function initials(text: string): string {
   return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
-function AccountMenu({ email }: { email: string }) {
+function AccountMenu({ email, name }: { email: string; name: string | null }) {
   const theme = useTheme();
   const logoutForm = useRef<HTMLFormElement>(null);
 
@@ -62,14 +62,17 @@ function AccountMenu({ email }: { email: string }) {
       <DropdownMenu>
         <DropdownMenuTrigger render={<SidebarMenuButton size="lg" />}>
           <Avatar className="size-8">
-            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials(email)}</AvatarFallback>
+            <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">{initials(name ?? email)}</AvatarFallback>
           </Avatar>
-          <span className="min-w-0 flex-1 truncate text-sm">{email}</span>
+          <span className="min-w-0 flex-1 truncate text-sm">{name ?? email}</span>
           <ChevronsUpDown className="ml-auto text-muted-foreground" />
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" className="min-w-56">
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex flex-col">
+              {name && <span className="truncate font-medium text-foreground">{name}</span>}
+              <span className="truncate">{email}</span>
+            </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
@@ -100,10 +103,12 @@ function AccountMenu({ email }: { email: string }) {
 
 export function AppSidebar({
   email,
+  name,
   organisation,
   enabledModuleSlugs,
 }: {
   email: string;
+  name: string | null;
   organisation: SidebarOrganisation | null;
   enabledModuleSlugs: readonly ModuleSlug[];
 }) {
@@ -174,7 +179,7 @@ export function AppSidebar({
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <AccountMenu email={email} />
+            <AccountMenu email={email} name={name} />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

@@ -12,6 +12,7 @@ import * as migration_20260914_224504_remove_compare_periods_report_type from '.
 import * as migration_20260915_181406_add_wordpress_seo_provider_fields from './20260915_181406_add_wordpress_seo_provider_fields';
 import * as migration_20260925_163833_add_oauth_authorization_server from './20260925_163833_add_oauth_authorization_server';
 import * as migration_20260925_221212_oauth_grant_revoked_by from './20260925_221212_oauth_grant_revoked_by';
+import * as migration_20260930_162225_add_user_full_name from './20260930_162225_add_user_full_name';
 
 export const migrations = [
   {
@@ -82,6 +83,11 @@ export const migrations = [
   {
     up: migration_20260925_221212_oauth_grant_revoked_by.up,
     down: migration_20260925_221212_oauth_grant_revoked_by.down,
-    name: '20260925_221212_oauth_grant_revoked_by'
+    name: '20260925_221212_oauth_grant_revoked_by',
+  },
+  {
+    up: migration_20260930_162225_add_user_full_name.up,
+    down: migration_20260930_162225_add_user_full_name.down,
+    name: '20260930_162225_add_user_full_name'
   },
 ];

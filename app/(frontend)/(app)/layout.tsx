@@ -26,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <SidebarProvider defaultOpen={cookieStore.get("sidebar_state")?.value !== "false"}>
       <AppSidebar
         email={user?.email ?? ""}
+        name={user?.name ?? null}
         organisation={organisation && organisationName ? { name: organisationName, role: organisation.role } : null}
         enabledModuleSlugs={enabledModuleSlugs}
       />

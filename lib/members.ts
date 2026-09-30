@@ -5,7 +5,7 @@ export const ORGANISATION_ROLES = ["admin", "member"] as const;
 export type OrganisationRole = (typeof ORGANISATION_ROLES)[number];
 
 export interface MemberRow {
-  user: string | { id: string | number; email?: string };
+  user: string | { id: string | number; email?: string; name?: string | null };
   role: OrganisationRole;
 }
 

@@ -30,6 +30,15 @@ export const Users: CollectionConfig = {
   },
   fields: [
     {
+      name: "name",
+      label: "Full name",
+      type: "text",
+      // Required at signup (`signupAction`), but not by the collection: accounts that
+      // predate this field have none, and a required column would block saving them
+      // (and need a backfill). The email stays the document title.
+      maxLength: 120,
+    },
+    {
       name: "role",
       type: "select",
       options: ["superadmin", "customer"],

@@ -60,10 +60,13 @@ export function MembersPanel({ members, currentUserId }: { members: PopulatedMem
                   <span className="flex items-center gap-3">
                     <Avatar className="size-8">
                       <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                        {member.email.slice(0, 2).toUpperCase()}
+                        {(member.name ?? member.email).slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{member.email}</span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">{member.name ?? member.email}</span>
+                      {member.name && <span className="truncate text-xs text-muted-foreground">{member.email}</span>}
+                    </span>
                     {member.userId === currentUserId && <Badge variant="secondary">You</Badge>}
                   </span>
                 </TableCell>

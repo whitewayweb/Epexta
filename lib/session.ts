@@ -7,6 +7,8 @@ const COOKIE_NAME = "payload-token";
 export interface SessionUser {
   id: string;
   email: string;
+  /** Full name; null for accounts created before the field existed. */
+  name: string | null;
 }
 
 export async function setSessionCookie(token: string, exp?: number): Promise<void> {
@@ -36,8 +38,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   });
   if (!user) return null;
 
-  const record = user as unknown as { id: string | number; email: string };
-  return { id: String(record.id), email: record.email };
+  const record = user as unknown as { id: string | number; email: string; name?: string | null };
+  return { id: String(record.id), email: record.email, name: record.name?.trim() || null };
 }
 
 /** Fetches the current user, redirecting anonymous visitors to /login with a return path. */

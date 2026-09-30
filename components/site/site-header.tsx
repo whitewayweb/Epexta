@@ -33,7 +33,7 @@ export async function SiteHeader() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+              <span className="hidden text-sm text-muted-foreground sm:inline">{user.name ?? user.email}</span>
               <Button variant="ghost" render={<Link href="/wordpress" />}>
                 Dashboard
               </Button>

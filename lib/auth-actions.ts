@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { z } from "zod";
+import { credentialsSchema, firstIssueMessage, signupSchema } from "./auth-schemas";
 import { getPayloadClient } from "./payload";
 import { createOrganisationForUser } from "./organisation";
 import { safeRedirectPath } from "./redirects";
@@ -11,24 +11,16 @@ export interface AuthState {
   error: string | null;
 }
 
-const credentialsSchema = z.object({
-  email: z.string().trim().min(1, "Email is required.").email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-});
-
-function firstIssueMessage(error: z.ZodError): string {
-  return error.issues[0]?.message ?? "Invalid input.";
-}
-
 export async function signupAction(_prevState: AuthState, formData: FormData): Promise<AuthState> {
-  const parsed = credentialsSchema.safeParse({
+  const parsed = signupSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    name: formData.get("name") ?? "",
   });
   if (!parsed.success) {
     return { error: firstIssueMessage(parsed.error) };
   }
-  const { email, password } = parsed.data;
+  const { email, password, name } = parsed.data;
   const redirectTo = safeRedirectPath(formData.get("redirectTo"));
   const organisationNameRaw = formData.get("organisationName");
   const organisationName = typeof organisationNameRaw === "string" ? organisationNameRaw.trim() : "";
@@ -38,7 +30,10 @@ export async function signupAction(_prevState: AuthState, formData: FormData): P
   try {
     // `role` is required by the generated type; the collection's beforeChange hook
     // (Users.ts) overwrites it regardless (superadmin only for the bootstrap first user).
-    const user = await payload.create({ collection: "users", data: { email, password, role: "customer" } });
+    const user = await payload.create({
+      collection: "users",
+      data: { email, password, name, role: "customer" },
+    });
     userId = String(user.id);
   } catch {
     return { error: "Could not create an account with that email." };
