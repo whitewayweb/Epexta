@@ -37,11 +37,13 @@ export default async function GoogleSearchConsoleConnectPage() {
     return <ModuleNotEnabled moduleName="Google Search Console" />;
   }
 
-  const [connections, wordpressConnections, mappings] = await Promise.all([
+  const [connections, wordpressConnections, orgMappings] = await Promise.all([
     listConnectionsForCapability(organisation.organisationId, "google-search-console"),
-    listWordPressConnections(organisation.organisationId),
+    listWordPressConnections(organisation.organisationId, user.id),
     listMappingsForOrganisation(organisation.organisationId),
   ]);
+  // Only mappings for sites this user connected - colleagues' sites aren't theirs to see.
+  const mappings = orgMappings.filter((m) => wordpressConnections.some((c) => c.connectionId === m.wordpressConnectionId));
 
   // Application Passwords never leave the server - strip just that field.
   const sites = wordpressConnections.map(({ appPassword: _appPassword, ...rest }) => rest);

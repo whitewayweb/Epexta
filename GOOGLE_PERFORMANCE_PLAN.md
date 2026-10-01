@@ -516,7 +516,9 @@ credentials. Never put tokens in URLs, logs, or MCP results.
 
 Each module runs its own wizard against its own mapping collection:
 
-1. The organisation admin selects an existing WordPress connection.
+1. The organisation admin selects one of their own WordPress connections (WordPress
+connections are per-user, `wordpress-connections.user`; an admin never sees or maps a
+colleague's, and the Google MCP route lists only mappings for the caller's own sites).
 2. Via `modules/google-connections`'s `listConnectionsForCapability`, they
    pick an existing connection whose `scopeProfile` already matches this
    module, or call `startAuthorization` for a new Google account scoped to

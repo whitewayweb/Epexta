@@ -340,7 +340,7 @@ export interface OauthToken {
   createdAt: string;
 }
 /**
- * WordPress sites connected to an organisation. An organisation may connect more than one.
+ * WordPress sites connected by a user of an organisation. Each connection is private to the user who added it.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "wordpress-connections".
@@ -348,6 +348,10 @@ export interface OauthToken {
 export interface WordpressConnection {
   id: number;
   organisation: number | Organisation;
+  /**
+   * The user who connected this site. Only they can use or manage it.
+   */
+  user: number | User;
   /**
    * Optional nickname to tell this site apart from others, e.g. "Main blog".
    */
@@ -983,6 +987,7 @@ export interface OauthTokensSelect<T extends boolean = true> {
  */
 export interface WordpressConnectionsSelect<T extends boolean = true> {
   organisation?: T;
+  user?: T;
   label?: T;
   siteUrl?: T;
   username?: T;

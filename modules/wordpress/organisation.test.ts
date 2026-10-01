@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { getPayloadClient } from "../../lib/payload";
 import { createOrReplaceMapping as createOrReplaceSearchConsoleMapping } from "../google-search-console/mappings";
 import { createOrReplaceMapping as createOrReplaceAnalyticsMapping } from "../google-analytics/mappings";
-import { deleteWordPressConnection, getWordPressConnection, WordPressConnectionInUseError } from "./organisation";
+import {
+  createWordPressConnection,
+  deleteWordPressConnection,
+  getOwnedWordPressConnection,
+  getWordPressConnection,
+  listWordPressConnections,
+  WordPressConnectionInUseError,
+} from "./organisation";
 
 // Regression test for a gap found alongside the organisation-deletion cascade bug (see
 // lib/organisation-deletion-cascade.test.ts): the cascade-delete migration made
@@ -30,6 +37,7 @@ describe("deleteWordPressConnection blocks deletion when Google mappings referen
     const wpConnection = await payload.create({
       collection: "wordpress-connections",
       data: {
+        user: Number(adminUserId),
         organisation: Number(organisationId),
         siteUrl: `https://wp-delete-${suffix}.example.com`,
         username: "admin",
@@ -64,7 +72,7 @@ describe("deleteWordPressConnection blocks deletion when Google mappings referen
       adminUserId
     );
 
-    await expect(deleteWordPressConnection(organisationId, wordpressConnectionId)).rejects.toThrow(
+    await expect(deleteWordPressConnection(organisationId, adminUserId, wordpressConnectionId)).rejects.toThrow(
       WordPressConnectionInUseError
     );
 
@@ -104,7 +112,7 @@ describe("deleteWordPressConnection blocks deletion when Google mappings referen
       adminUserId
     );
 
-    await expect(deleteWordPressConnection(organisationId, wordpressConnectionId)).rejects.toThrow(
+    await expect(deleteWordPressConnection(organisationId, adminUserId, wordpressConnectionId)).rejects.toThrow(
       WordPressConnectionInUseError
     );
 
@@ -119,7 +127,7 @@ describe("deleteWordPressConnection blocks deletion when Google mappings referen
     const suffix = randomUUID();
     const { payload, adminUserId, organisationId, wordpressConnectionId } = await makeFixtures(suffix);
 
-    await expect(deleteWordPressConnection(organisationId, wordpressConnectionId)).resolves.toBeUndefined();
+    await expect(deleteWordPressConnection(organisationId, adminUserId, wordpressConnectionId)).resolves.toBeUndefined();
 
     await expect(
       payload.findByID({ collection: "wordpress-connections", id: wordpressConnectionId, overrideAccess: true })
@@ -158,6 +166,7 @@ describe("wordpress-connections SEO provider fields", () => {
     const wpConnection = await payload.create({
       collection: "wordpress-connections",
       data: {
+        user: Number(adminUserId),
         organisation: Number(organisationId),
         siteUrl: `https://wp-seo-${suffix}.example.com`,
         username: "admin",
@@ -194,5 +203,80 @@ describe("wordpress-connections SEO provider fields", () => {
     await payload.delete({ collection: "organisations", id: organisationId, overrideAccess: true }).catch(() => {});
     await payload.delete({ collection: "organisations", id: otherOrganisationId, overrideAccess: true }).catch(() => {});
     await payload.delete({ collection: "users", id: adminUserId, overrideAccess: true }).catch(() => {});
+  });
+});
+
+describe("wordpress-connections per-user ownership", () => {
+  async function makeTwoAdmins(suffix: string) {
+    const payload = await getPayloadClient();
+    const makeUser = async (name: string) =>
+      payload.create({
+        collection: "users",
+        data: { email: `wp-owner-${name}-${suffix}@example.com`, password: "test-password-123", role: "customer" },
+      });
+    const [first, second] = await Promise.all([makeUser("a"), makeUser("b")]);
+    const org = await payload.create({
+      collection: "organisations",
+      data: {
+        name: `wp-owner-org-${suffix}`,
+        members: [
+          { user: Number(first.id), role: "admin" },
+          { user: Number(second.id), role: "admin" },
+        ],
+      },
+      overrideAccess: true,
+    });
+    return { payload, firstId: String(first.id), secondId: String(second.id), organisationId: String(org.id) };
+  }
+
+  async function cleanup(fixtures: Awaited<ReturnType<typeof makeTwoAdmins>>) {
+    const { payload, firstId, secondId, organisationId } = fixtures;
+    await payload.delete({ collection: "organisations", id: organisationId, overrideAccess: true }).catch(() => {});
+    await payload.delete({ collection: "users", id: firstId, overrideAccess: true }).catch(() => {});
+    await payload.delete({ collection: "users", id: secondId, overrideAccess: true }).catch(() => {});
+  }
+
+  const credentials = (siteUrl: string, username: string) => ({ siteUrl, username, appPassword: "fake app password" });
+
+  it("lets two users of one organisation connect the same site, each seeing only their own", async () => {
+    const fixtures = await makeTwoAdmins(randomUUID());
+    const { organisationId, firstId, secondId } = fixtures;
+    const siteUrl = `https://wp-owner-${randomUUID()}.example.com`;
+
+    await createWordPressConnection(organisationId, firstId, credentials(siteUrl, "first"));
+    await createWordPressConnection(organisationId, secondId, credentials(siteUrl, "second"));
+
+    const firstSees = await listWordPressConnections(organisationId, firstId);
+    const secondSees = await listWordPressConnections(organisationId, secondId);
+    expect(firstSees.map((c) => c.username)).toEqual(["first"]);
+    expect(secondSees.map((c) => c.username)).toEqual(["second"]);
+
+    await cleanup(fixtures);
+  });
+
+  it("does not let a user fetch or delete a colleague's connection by id", async () => {
+    const fixtures = await makeTwoAdmins(randomUUID());
+    const { organisationId, firstId, secondId } = fixtures;
+    await createWordPressConnection(organisationId, firstId, credentials(`https://wp-owner-${randomUUID()}.example.com`, "first"));
+    const [firstConnection] = await listWordPressConnections(organisationId, firstId);
+
+    expect(await getOwnedWordPressConnection(organisationId, secondId, firstConnection.connectionId)).toBeNull();
+    await expect(deleteWordPressConnection(organisationId, secondId, firstConnection.connectionId)).rejects.toThrow(
+      "Connection not found."
+    );
+    expect(await getOwnedWordPressConnection(organisationId, firstId, firstConnection.connectionId)).not.toBeNull();
+
+    await cleanup(fixtures);
+  });
+
+  it("rejects the same user connecting the same site twice", async () => {
+    const fixtures = await makeTwoAdmins(randomUUID());
+    const { organisationId, firstId } = fixtures;
+    const siteUrl = `https://wp-owner-${randomUUID()}.example.com`;
+
+    await createWordPressConnection(organisationId, firstId, credentials(siteUrl, "first"));
+    await expect(createWordPressConnection(organisationId, firstId, credentials(siteUrl, "other"))).rejects.toBeTruthy();
+
+    await cleanup(fixtures);
   });
 });

@@ -23,7 +23,7 @@ export default async function WordPressOverviewPage() {
   }
 
   const organisation = await getUserOrganisation(user.id);
-  const connections = organisation ? await listWordPressConnections(organisation.organisationId) : [];
+  const connections = organisation ? await listWordPressConnections(organisation.organisationId, user.id) : [];
   const isAdmin = organisation?.role === "admin";
   // Application Passwords never leave the server - strip just that field.
   const sites = connections.map(({ appPassword: _appPassword, ...rest }) => rest);
@@ -34,8 +34,8 @@ export default async function WordPressOverviewPage() {
         title="WordPress sites"
         description={
           isAdmin
-            ? "Sites Epexta can publish to. Everyone in your organisation can use them from their AI apps; only admins can add or change one."
-            : "Sites Epexta can publish to. You can use them from your AI apps; an admin manages the connections."
+            ? "Sites you connected for Epexta to publish to. They are private to you; each admin connects their own."
+            : "Sites you connected for Epexta to publish to. Only organisation admins can connect a site."
         }
         actions={
           isAdmin &&

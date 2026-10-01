@@ -30,6 +30,7 @@ describe("google-analytics createOrReplaceMapping", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://ga-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",

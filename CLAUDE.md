@@ -291,12 +291,24 @@ example shows.
 1. **`superadmin`** (on the `Users` collection `role` field) — the only role that can
    open `/admin` at all, enforced via `Users.access.admin`. This is the platform
    owner, not a customer.
-2. **Organisation `admin`** (in an `Organisations` doc's `members[]`) — manages that
-   organisation's module connections (e.g. the WordPress site + Application
+2. **Organisation `admin`** (in an `Organisations` doc's `members[]`) — adds and
+   manages their own module connections (e.g. a WordPress site + Application
    Password), invites/removes organisation members, generates their own API key.
-3. **Organisation `member`** — gets their own API key to use a module's MCP tools
-   against the organisation's connection, but cannot see or edit the connection,
-   cannot manage other members.
+3. **Organisation `member`** — gets their own API key (or OAuth connector) but cannot
+   add or edit connections, so has no WordPress sites of their own, and cannot manage
+   other members.
+
+**WordPress connections are per-user.** `wordpress-connections.user` (required) is the
+user who added the site; `(organisation, user, siteUrl)` is unique. Two admins of one
+organisation may each connect the same site with their own credentials, and every page,
+Server Action and MCP route (`modules/wordpress`, the Google Site Hub route) only ever
+sees the calling user's connections - `listWordPressConnections(organisationId, userId)`
+and `getOwnedWordPressConnection(organisationId, userId, id)` for anything taking a
+connection id from a request. `getWordPressConnection(organisationId, id)` is
+organisation-scoped only and is for code that already resolved the caller to one of
+their own connections (Google reporting). A connection is deleted with its user (FK
+`ON DELETE CASCADE`); removing a user from an organisation leaves their connections
+unreachable until a superadmin deletes them in `/admin`.
 
 Never let a public signup (`lib/auth-actions.ts` `signupAction`) set its own role —
 `Users.ts`'s `beforeChange` hook forces `customer` unless the creating request is

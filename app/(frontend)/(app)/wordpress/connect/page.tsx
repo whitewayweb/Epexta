@@ -6,7 +6,7 @@ import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
-import { getWordPressConnection } from "@/modules/wordpress/organisation";
+import { getOwnedWordPressConnection } from "@/modules/wordpress/organisation";
 
 const CONNECT_PATH = "/wordpress/connect";
 const OVERVIEW_PATH = "/wordpress";
@@ -33,7 +33,7 @@ export default async function ConnectPage({
     redirect(OVERVIEW_PATH);
   }
 
-  const editingConnection = edit && organisation ? await getWordPressConnection(organisation.organisationId, edit) : null;
+  const editingConnection = edit && organisation ? await getOwnedWordPressConnection(organisation.organisationId, user.id, edit) : null;
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6">

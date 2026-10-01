@@ -31,6 +31,7 @@ describe("google-search-console createOrReplaceMapping", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://gsc-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",
@@ -43,6 +44,7 @@ describe("google-search-console createOrReplaceMapping", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://gsc-other-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",
@@ -129,6 +131,7 @@ describe("google-search-console createOrReplaceMapping", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://gsc-race-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",

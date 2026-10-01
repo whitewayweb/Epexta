@@ -24,12 +24,14 @@ export default async function GoogleAnalyticsOverviewPage() {
   }
 
   const organisation = await getUserOrganisation(user.id);
-  const [mappings, wordpressConnections] = organisation
+  const [orgMappings, wordpressConnections] = organisation
     ? await Promise.all([
         listMappingsForOrganisation(organisation.organisationId),
-        listWordPressConnections(organisation.organisationId),
+        listWordPressConnections(organisation.organisationId, user.id),
       ])
     : [[], []];
+  // Only mappings for sites this user connected - colleagues' sites aren't theirs to see.
+  const mappings = orgMappings.filter((m) => wordpressConnections.some((c) => c.connectionId === m.wordpressConnectionId));
   const isAdmin = organisation?.role === "admin";
 
   return (

@@ -52,24 +52,30 @@ interface GoogleSiteHubExtra {
   googleSearchConsoleMappedSites: MappedSite[];
 }
 
+// Only mappings for the caller's own WordPress connections are listed, so a colleague's
+// site never reaches the tools (the same boundary resolveSite relies on below).
 async function buildMappedSites(
   organisationId: string,
+  userId: string,
   listMappings: (organisationId: string) => Promise<{ wordpressConnectionId: string }[]>
 ): Promise<MappedSite[]> {
   const [mappings, connections] = await Promise.all([
     listMappings(organisationId),
-    listWordPressConnections(organisationId),
+    listWordPressConnections(organisationId, userId),
   ]);
-  return mappings.map((mapping) => {
+  return mappings.flatMap((mapping) => {
     const connection = connections.find((c) => c.connectionId === mapping.wordpressConnectionId);
-    return {
-      wordpressConnectionId: mapping.wordpressConnectionId,
-      label: connection ? (connection.label ? `${connection.label} (${connection.siteUrl})` : connection.siteUrl) : mapping.wordpressConnectionId,
-    };
+    if (!connection) return [];
+    return [
+      {
+        wordpressConnectionId: mapping.wordpressConnectionId,
+        label: connection.label ? `${connection.label} (${connection.siteUrl})` : connection.siteUrl,
+      },
+    ];
   });
 }
 
-async function buildGoogleSiteHubExtra({ organisationId }: McpCaller): Promise<GoogleSiteHubExtra> {
+async function buildGoogleSiteHubExtra({ organisationId, userId }: McpCaller): Promise<GoogleSiteHubExtra> {
   const [googleAnalyticsEnabled, googleSearchConsoleEnabled] = organisationId
     ? await Promise.all([
         isModuleEnabled(organisationId, "google-analytics"),
@@ -79,10 +85,10 @@ async function buildGoogleSiteHubExtra({ organisationId }: McpCaller): Promise<G
 
   const [googleAnalyticsMappedSites, googleSearchConsoleMappedSites] = await Promise.all([
     googleAnalyticsEnabled && organisationId
-      ? buildMappedSites(organisationId, listAnalyticsMappingsForOrganisation)
+      ? buildMappedSites(organisationId, userId, listAnalyticsMappingsForOrganisation)
       : Promise.resolve([]),
     googleSearchConsoleEnabled && organisationId
-      ? buildMappedSites(organisationId, listSearchConsoleMappingsForOrganisation)
+      ? buildMappedSites(organisationId, userId, listSearchConsoleMappingsForOrganisation)
       : Promise.resolve([]),
   ]);
 

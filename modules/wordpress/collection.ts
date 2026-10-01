@@ -1,4 +1,4 @@
-import type { CollectionConfig, PayloadRequest } from "payload";
+import type { CollectionConfig, PayloadRequest, Where } from "payload";
 import { decrypt, encrypt } from "../../lib/crypto";
 import { findMember, isSuperadmin, type MemberRow, type OrganisationRole } from "../../lib/members";
 
@@ -22,30 +22,39 @@ async function organisationRoleForRequest(
   return { organisationId: String(doc.id), role: member.role };
 }
 
+// A connection belongs to the user who added it: the organisation scopes who may be
+// asked about it, the user scopes which one an MCP caller or page actually sees.
+function ownedByOrganisationAndUser(ctx: { organisationId: string }, req: PayloadRequest): Where {
+  return { and: [{ organisation: { equals: ctx.organisationId } }, { user: { equals: req.user?.id } }] };
+}
+
 export const WordPressConnections: CollectionConfig = {
   slug: "wordpress-connections",
   admin: {
     useAsTitle: "siteUrl",
-    description: "WordPress sites connected to an organisation. An organisation may connect more than one.",
+    description: "WordPress sites connected by a user of an organisation. Each connection is private to the user who added it.",
   },
   access: {
     read: async ({ req }) => {
       if (isSuperadmin(req)) return true;
       const ctx = await organisationRoleForRequest(req);
-      return ctx ? { organisation: { equals: ctx.organisationId } } : false;
+      return ctx ? ownedByOrganisationAndUser(ctx, req) : false;
     },
     create: ({ req }) => Boolean(req.user),
     update: async ({ req }) => {
       if (isSuperadmin(req)) return true;
       const ctx = await organisationRoleForRequest(req);
-      return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
+      return ctx?.role === "admin" ? ownedByOrganisationAndUser(ctx, req) : false;
     },
     delete: async ({ req }) => {
       if (isSuperadmin(req)) return true;
       const ctx = await organisationRoleForRequest(req);
-      return ctx?.role === "admin" ? { organisation: { equals: ctx.organisationId } } : false;
+      return ctx?.role === "admin" ? ownedByOrganisationAndUser(ctx, req) : false;
     },
   },
+  // One user can't connect the same site twice, but two users (admins) of one organisation
+  // each get their own connection to it - an MCP caller only ever sees their own.
+  indexes: [{ fields: ["organisation", "user", "siteUrl"], unique: true }],
   fields: [
     {
       name: "organisation",
@@ -53,6 +62,13 @@ export const WordPressConnections: CollectionConfig = {
       relationTo: "organisations",
       required: true,
       admin: { position: "sidebar" },
+    },
+    {
+      name: "user",
+      type: "relationship",
+      relationTo: "users",
+      required: true,
+      admin: { position: "sidebar", description: "The user who connected this site. Only they can use or manage it." },
     },
     {
       name: "label",

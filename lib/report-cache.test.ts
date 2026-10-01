@@ -32,6 +32,7 @@ describe("getOrRefreshReport lease ownership", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://report-cache-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",
@@ -191,6 +192,7 @@ describe("checkAndIncrementQuota create race", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://quota-race-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",

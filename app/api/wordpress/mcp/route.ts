@@ -98,9 +98,9 @@ function errorResult(error: unknown) {
 // tool-call error (see resolveConnection) rather than a generic 401, so it can tell the
 // user what to do instead of just "unauthorized".
 async function buildWordPressExtra(caller: McpCaller) {
-  const { organisationId } = caller;
+  const { organisationId, userId } = caller;
   const moduleEnabled = organisationId ? await isModuleEnabled(organisationId, "wordpress") : false;
-  const connections = moduleEnabled && organisationId ? await listWordPressConnections(organisationId) : [];
+  const connections = moduleEnabled && organisationId ? await listWordPressConnections(organisationId, userId) : [];
   return { connections, moduleEnabled };
 }
 

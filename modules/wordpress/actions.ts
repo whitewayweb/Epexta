@@ -14,7 +14,7 @@ import {
 import {
   createWordPressConnection,
   deleteWordPressConnection,
-  getWordPressConnection,
+  getOwnedWordPressConnection,
   updateWordPressConnection,
   WordPressConnectionInUseError,
   type SeoProviderPreference,
@@ -132,7 +132,7 @@ export async function addConnectionAction(
   }
 
   try {
-    await createWordPressConnection(organisation.organisationId, parsed.data);
+    await createWordPressConnection(organisation.organisationId, user.id, parsed.data);
   } catch {
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
@@ -172,7 +172,7 @@ export async function updateConnectionAction(
   }
 
   try {
-    await updateWordPressConnection(organisation.organisationId, connectionId, parsed.data);
+    await updateWordPressConnection(organisation.organisationId, user.id, connectionId, parsed.data);
   } catch {
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
@@ -207,7 +207,7 @@ export async function removeConnectionAction(
   }
 
   try {
-    await deleteWordPressConnection(organisation.organisationId, connectionId);
+    await deleteWordPressConnection(organisation.organisationId, user.id, connectionId);
   } catch (err) {
     if (err instanceof WordPressConnectionInUseError) {
       return { error: err.message, success: false };
@@ -320,9 +320,9 @@ export async function updateSeoProviderPreferenceAction(
     return { error: firstIssueMessage(parsed.error), success: false };
   }
 
-  const existing = await getWordPressConnection(organisation.organisationId, parsed.data.connectionId);
+  const existing = await getOwnedWordPressConnection(organisation.organisationId, user.id, parsed.data.connectionId);
   if (!existing) {
-    return { error: "Connection not found for this organisation.", success: false };
+    return { error: "Connection not found.", success: false };
   }
 
   const payload = await getPayloadClient();

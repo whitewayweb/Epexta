@@ -1,7 +1,7 @@
 import { runInTransaction } from "../../lib/db-transactions";
 import { getPayloadClient } from "../../lib/payload";
 import { getConnectionForCapability } from "../google-connections";
-import { getWordPressConnection } from "../wordpress/organisation";
+import { getOwnedWordPressConnection } from "../wordpress/organisation";
 
 export interface AnalyticsMapping {
   mappingId: string;
@@ -84,8 +84,8 @@ export async function createOrReplaceMapping(
   input: CreateMappingInput,
   confirmedByUserId: string
 ): Promise<{ mappingId: string }> {
-  const wordpressConnection = await getWordPressConnection(organisationId, input.wordpressConnectionId);
-  if (!wordpressConnection) throw new Error("WordPress connection not found for this organisation.");
+  const wordpressConnection = await getOwnedWordPressConnection(organisationId, confirmedByUserId, input.wordpressConnectionId);
+  if (!wordpressConnection) throw new Error("WordPress connection not found.");
 
   const googleConnection = await getConnectionForCapability(organisationId, input.googleConnectionId, "google-analytics");
   if (!googleConnection) throw new Error("Google connection not found for this organisation/capability.");

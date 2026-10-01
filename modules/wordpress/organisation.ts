@@ -71,11 +71,12 @@ function toConnection(doc: WordPressConnectionDoc): WordPressConnection {
   };
 }
 
-export async function listWordPressConnections(organisationId: string): Promise<WordPressConnection[]> {
+/** The sites this user connected - what their pages and MCP tools see. Never other users' connections. */
+export async function listWordPressConnections(organisationId: string, userId: string): Promise<WordPressConnection[]> {
   const payload = await getPayloadClient();
   const result = await payload.find({
     collection: "wordpress-connections",
-    where: { organisation: { equals: Number(organisationId) } },
+    where: { organisation: { equals: Number(organisationId) }, user: { equals: Number(userId) } },
     sort: "createdAt",
     limit: 100,
     overrideAccess: true,
@@ -84,7 +85,11 @@ export async function listWordPressConnections(organisationId: string): Promise<
   return result.docs.map(toConnection);
 }
 
-/** Fetches one connection, scoped to the given organisation so a caller can't reach another org's site. */
+/**
+ * Fetches one connection scoped to the organisation only. For code that runs after the
+ * caller was already resolved to one of their own connections (Google reporting); anything
+ * taking a connection id from a request goes through getOwnedWordPressConnection instead.
+ */
 export async function getWordPressConnection(
   organisationId: string,
   connectionId: string
@@ -100,25 +105,44 @@ export async function getWordPressConnection(
   return toConnection(doc);
 }
 
+/** Fetches one connection only if this user connected it, so a caller can't reach a colleague's site by id. */
+export async function getOwnedWordPressConnection(
+  organisationId: string,
+  userId: string,
+  connectionId: string
+): Promise<WordPressConnection | null> {
+  const payload = await getPayloadClient();
+  const doc = await payload
+    .findByID({ collection: "wordpress-connections", id: connectionId, overrideAccess: true })
+    .catch(() => null);
+  if (!doc) return null;
+
+  if (relationshipId(doc.organisation) !== organisationId || relationshipId(doc.user) !== userId) return null;
+
+  return toConnection(doc);
+}
+
 export async function createWordPressConnection(
   organisationId: string,
+  userId: string,
   data: WordPressConnectionInput
 ): Promise<void> {
   const payload = await getPayloadClient();
   await payload.create({
     collection: "wordpress-connections",
-    data: { ...data, organisation: Number(organisationId) },
+    data: { ...data, organisation: Number(organisationId), user: Number(userId) },
     overrideAccess: true,
   });
 }
 
 export async function updateWordPressConnection(
   organisationId: string,
+  userId: string,
   connectionId: string,
   data: WordPressConnectionUpdateInput
 ): Promise<void> {
-  const existing = await getWordPressConnection(organisationId, connectionId);
-  if (!existing) throw new Error("Connection not found for this organisation.");
+  const existing = await getOwnedWordPressConnection(organisationId, userId, connectionId);
+  if (!existing) throw new Error("Connection not found.");
 
   const payload = await getPayloadClient();
   await payload.update({
@@ -130,9 +154,13 @@ export async function updateWordPressConnection(
   });
 }
 
-export async function deleteWordPressConnection(organisationId: string, connectionId: string): Promise<void> {
-  const existing = await getWordPressConnection(organisationId, connectionId);
-  if (!existing) throw new Error("Connection not found for this organisation.");
+export async function deleteWordPressConnection(
+  organisationId: string,
+  userId: string,
+  connectionId: string
+): Promise<void> {
+  const existing = await getOwnedWordPressConnection(organisationId, userId, connectionId);
+  if (!existing) throw new Error("Connection not found.");
 
   const referencingCapabilities = await referencingCapabilitiesForWordPressConnection(connectionId);
   if (referencingCapabilities.length > 0) {

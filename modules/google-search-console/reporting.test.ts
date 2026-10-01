@@ -58,6 +58,7 @@ describe("google-search-console getPostPerformance", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(adminUserId),
         siteUrl: `https://reporting-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",
@@ -114,7 +115,7 @@ describe("google-search-console getPostPerformance", () => {
     const suffix = randomUUID();
     const unmappedConnection = await payload.create({
       collection: "wordpress-connections",
-      data: { organisation: Number(organisationId), siteUrl: `https://unmapped-${suffix}.example.com`, username: "admin", appPassword: "x" },
+      data: { organisation: Number(organisationId), user: Number(adminUserId), siteUrl: `https://unmapped-${suffix}.example.com`, username: "admin", appPassword: "x" },
       overrideAccess: true,
     });
 

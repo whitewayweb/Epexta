@@ -48,6 +48,7 @@ describe("deleting an organisation cascades correctly", () => {
       collection: "wordpress-connections",
       data: {
         organisation: Number(organisationId),
+        user: Number(orgAdmin.id),
         siteUrl: `https://cascade-test-${suffix}.example.com`,
         username: "admin",
         appPassword: "fake app password",
@@ -206,6 +207,7 @@ describe("deleting an organisation cascades correctly", () => {
     const wordpressConnection = await payload.create({
       collection: "wordpress-connections",
       data: {
+        user: Number(orgAdmin.id),
         organisation: Number(org.id),
         siteUrl: `https://cascade-test2-${suffix}.example.com`,
         username: "admin",
