@@ -46,7 +46,7 @@ export default async function LinkedInConnectPage({
         <dl className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Epexta account</dt>
-            <dd className="truncate text-right font-medium">{user.email}</dd>
+            <dd className="truncate text-right font-medium">{user.name ?? user.email}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Website</dt>
@@ -69,7 +69,7 @@ export default async function LinkedInConnectPage({
 
         <form action={logoutAction} className="text-center text-sm text-muted-foreground">
           <input type="hidden" name="redirectTo" value={`/login?redirectTo=${encodeURIComponent(path)}`} />
-          Not {user.email}?{" "}
+          Not {user.name ?? user.email}?{" "}
           <Button type="submit" variant="link" className="h-auto p-0 align-baseline">
             Switch account
           </Button>

@@ -73,7 +73,7 @@ export default async function AuthorizePage({
     >
       <div className="flex flex-col gap-5">
         <dl className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm">
-          <Detail label="Account">{user.email}</Detail>
+          <Detail label="Account">{user.name ?? user.email}</Detail>
           <Detail label="Organisation">{organisationName ?? "Your organisation"}</Detail>
           <Detail label="App identity">{consent.publisherHost ? `Published by ${consent.publisherHost}` : "Self-registered"}</Detail>
           <Detail label="Returns you to">{consent.redirectHost}</Detail>
@@ -111,7 +111,7 @@ export default async function AuthorizePage({
 
         <form action={logoutAction} className="text-center text-sm text-muted-foreground">
           <input type="hidden" name="redirectTo" value={`/login?redirectTo=${encodeURIComponent(consent.authorizePath)}`} />
-          Not {user.email}?{" "}
+          Not {user.name ?? user.email}?{" "}
           <Button type="submit" variant="link" className="h-auto p-0 align-baseline">
             Switch account
           </Button>

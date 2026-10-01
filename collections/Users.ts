@@ -4,7 +4,11 @@ export const Users: CollectionConfig = {
   slug: "users",
   auth: true,
   admin: {
-    useAsTitle: "email",
+    // Payload's relationship pickers search the title field, so it has to be a real column
+    // (a virtual "name or email" field can't be queried).
+    useAsTitle: "name",
+    listSearchableFields: ["name", "email"],
+    defaultColumns: ["name", "email", "role"],
   },
   access: {
     // Only superadmins may open the /admin panel at all. Customers (organisation
@@ -14,6 +18,13 @@ export const Users: CollectionConfig = {
   },
   hooks: {
     beforeChange: [
+      // Accounts that predate `name` have none, so the admin would title them by id. Fill
+      // it from the email the next time they are saved (no backfill needed).
+      ({ data, originalDoc }) => {
+        const email = String(data.email ?? originalDoc?.email ?? "");
+        if (!String(data.name ?? originalDoc?.name ?? "").trim() && email) data.name = email.split("@")[0];
+        return data;
+      },
       async ({ operation, data, req }) => {
         if (operation !== "create") return data;
 
@@ -35,7 +46,7 @@ export const Users: CollectionConfig = {
       type: "text",
       // Required at signup (`signupAction`), but not by the collection: accounts that
       // predate this field have none, and a required column would block saving them
-      // (and need a backfill). The email stays the document title.
+      // (and need a backfill). It is the document title, so a blank one is filled from the email on save.
       maxLength: 120,
     },
     {
