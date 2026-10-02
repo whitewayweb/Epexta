@@ -14,10 +14,8 @@ import {
 import {
   createWordPressConnection,
   deleteWordPressConnection,
-  getOwnedWordPressConnection,
   updateWordPressConnection,
   WordPressConnectionInUseError,
-  type SeoProviderPreference,
 } from "./organisation";
 
 export interface ConnectionState {
@@ -59,11 +57,6 @@ const updateConnectionSchema = z.object({
 
 const inviteSchema = z.object({
   email: z.string().trim().min(1, "Email is required.").email("Enter a valid email address."),
-});
-
-const seoProviderPreferenceSchema = z.object({
-  connectionId: z.string().min(1, "Missing connection."),
-  seoProviderPreference: z.enum(["auto", "yoast", "rank-math", "aioseo"]),
 });
 
 function firstIssueMessage(error: z.ZodError): string {
@@ -286,53 +279,4 @@ export async function removeMemberAction(
 
   const result = await removeOrganisationMember(organisation.organisationId, targetUserId);
   return { error: result.error ?? null, success: result.ok };
-}
-
-export interface SeoProviderPreferenceState {
-  error: string | null;
-  success: boolean;
-}
-
-export async function updateSeoProviderPreferenceAction(
-  _prevState: SeoProviderPreferenceState,
-  formData: FormData
-): Promise<SeoProviderPreferenceState> {
-  const user = await getCurrentUser();
-  if (!user) {
-    return { error: "You must be logged in.", success: false };
-  }
-
-  const entitlementError = await requireWordPressEnabled(user.id);
-  if (entitlementError) {
-    return { error: entitlementError, success: false };
-  }
-
-  const organisation = await getUserOrganisation(user.id);
-  if (!organisation || organisation.role !== "admin") {
-    return { error: "Only organisation admins can change the SEO provider preference.", success: false };
-  }
-
-  const parsed = seoProviderPreferenceSchema.safeParse({
-    connectionId: formData.get("connectionId"),
-    seoProviderPreference: formData.get("seoProviderPreference"),
-  });
-  if (!parsed.success) {
-    return { error: firstIssueMessage(parsed.error), success: false };
-  }
-
-  const existing = await getOwnedWordPressConnection(organisation.organisationId, user.id, parsed.data.connectionId);
-  if (!existing) {
-    return { error: "Connection not found.", success: false };
-  }
-
-  const payload = await getPayloadClient();
-  await payload.update({
-    collection: "wordpress-connections",
-    id: parsed.data.connectionId,
-    data: { seoProviderPreference: parsed.data.seoProviderPreference satisfies SeoProviderPreference },
-    overrideAccess: true,
-  });
-
-  revalidatePath("/wordpress");
-  return { error: null, success: true };
 }

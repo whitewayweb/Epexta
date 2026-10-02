@@ -9,7 +9,7 @@ import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
-import { SiteCard } from "@/modules/wordpress/SiteCard";
+import { SitesTable } from "@/modules/wordpress/SitesTable";
 
 const OVERVIEW_PATH = "/wordpress";
 const ADD_SITE_PATH = "/wordpress/connect";
@@ -73,11 +73,7 @@ export default async function WordPressOverviewPage() {
           )}
         </Empty>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sites.map((site) => (
-            <SiteCard key={site.connectionId} site={site} editable={isAdmin} />
-          ))}
-        </div>
+        <SitesTable sites={sites} editable={isAdmin} />
       )}
     </div>
   );
