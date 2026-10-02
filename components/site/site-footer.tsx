@@ -17,6 +17,12 @@ export function SiteFooter() {
           <Link href="/login" className="transition-colors hover:text-foreground">
             Log in
           </Link>
+          <Link href="/terms" className="transition-colors hover:text-foreground">
+            Terms
+          </Link>
+          <Link href="/privacy" className="transition-colors hover:text-foreground">
+            Privacy
+          </Link>
         </div>
       </div>
     </footer>
