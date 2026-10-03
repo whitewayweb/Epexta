@@ -4,6 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
+import { runLoggedTool, type DescribeCall } from "@/lib/mcp-activity";
 import { CREATE_TOOL, mcpServerIdentity, READ_ONLY_TOOL, UPDATE_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
 import {
   createWordPressClient,
@@ -103,6 +104,25 @@ async function buildWordPressExtra(caller: McpCaller) {
   const connections = moduleEnabled && organisationId ? await listWordPressConnections(organisationId, userId) : [];
   return { connections, moduleEnabled };
 }
+
+// What the activity log (lib/mcp-activity.ts) shows for a call: the post's title (or its id),
+// and the site it went to. Reads the same per-request connections the tools resolve against.
+const describeWordPressCall: DescribeCall = (args, ctx) => {
+  const connections = (ctx.http?.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];
+  const connection =
+    typeof args.siteId === "number"
+      ? connections.find((c) => Number(c.connectionId) === args.siteId)
+      : connections.length === 1
+        ? connections[0]
+        : undefined;
+  const target =
+    typeof args.title === "string" && args.title
+      ? `"${args.title}"`
+      : typeof args.postId === "number"
+        ? `post #${args.postId}`
+        : null;
+  return { target, siteLabel: connection ? siteLabel(connection) : null };
+};
 
 function siteLabel(connection: WordPressConnection): string {
   return connection.label ? `${connection.label} (${connection.siteUrl})` : connection.siteUrl;
@@ -297,18 +317,19 @@ const rawHandler = createMcpHandler(
   // the call to `handler`, which runs after this check, so a throw here would
   // otherwise escape uncaught.
   const registerGatedTool: typeof server.registerTool = ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
-    return server.registerTool(name, withToolIdentity("wordpress", config as { description?: string; annotations: ToolAnnotations }) as never, (async (...handlerArgs: unknown[]) => {
-      try {
-        const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
-        const moduleEnabled = Boolean(
-          (ctx.http?.authInfo?.extra as { moduleEnabled?: boolean } | undefined)?.moduleEnabled
-        );
-        assertModuleEnabled(moduleEnabled, "wordpress");
-      } catch (e) {
-        return errorResult(e);
-      }
-      return handler(...handlerArgs);
-    }) as never);
+    const toolConfig = config as { title?: string; description?: string; annotations: ToolAnnotations };
+    return server.registerTool(name, withToolIdentity("wordpress", toolConfig) as never, ((...handlerArgs: unknown[]) =>
+      runLoggedTool(
+        { moduleSlug: "wordpress", name, config: toolConfig },
+        handlerArgs,
+        {
+          assertEnabled: (ctx) =>
+            assertModuleEnabled(Boolean((ctx.http?.authInfo?.extra as { moduleEnabled?: boolean } | undefined)?.moduleEnabled), "wordpress"),
+          errorResult,
+          describe: describeWordPressCall,
+        },
+        () => handler(...handlerArgs)
+      )) as never);
   }) as typeof server.registerTool;
 
   registerGatedTool(

@@ -4,6 +4,7 @@ import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
 import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
+import { runLoggedTool } from "@/lib/mcp-activity";
 import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
@@ -104,6 +105,19 @@ async function buildGoogleSiteHubExtra({ organisationId, userId }: McpCaller): P
 const siteSelectionSchema = z.object({ siteId: z.string() });
 
 type ResolvedSite = { ok: true; wordpressConnectionId: string } | { ok: false; elicit: InputRequiredResult };
+
+// The activity log's site for a call: the mapped site named by siteId, or the only one mapped.
+function describeGoogleCall(moduleSlug: "google-analytics" | "google-search-console", args: Record<string, unknown>, ctx: ServerContext) {
+  const moduleExtra = extraOf(ctx);
+  const sites = (moduleSlug === "google-analytics" ? moduleExtra?.googleAnalyticsMappedSites : moduleExtra?.googleSearchConsoleMappedSites) ?? [];
+  const site =
+    typeof args.siteId === "number"
+      ? sites.find((s) => Number(s.wordpressConnectionId) === args.siteId)
+      : sites.length === 1
+        ? sites[0]
+        : undefined;
+  return { siteLabel: site?.label ?? null };
+}
 
 function extraOf(ctx: ServerContext): GoogleSiteHubExtra | undefined {
   return ctx.http?.authInfo?.extra as GoogleSiteHubExtra | undefined;
@@ -271,17 +285,22 @@ function createGoogleMcpHandler(extra: GoogleSiteHubExtra) {
     (server) => {
       function registerGatedTool(moduleSlug: "google-analytics" | "google-search-console", logPrefix: string): typeof server.registerTool {
         return ((name: string, config: unknown, handler: (...a: unknown[]) => unknown) => {
-          return server.registerTool(name, withToolIdentity(moduleSlug, config as { description?: string; annotations: ToolAnnotations }) as never, (async (...handlerArgs: unknown[]) => {
-            try {
-              const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
-              const moduleExtra = extraOf(ctx);
-              const moduleEnabled = moduleSlug === "google-analytics" ? Boolean(moduleExtra?.googleAnalyticsEnabled) : Boolean(moduleExtra?.googleSearchConsoleEnabled);
-              assertModuleEnabled(moduleEnabled, moduleSlug);
-            } catch (e) {
-              return errorResult(e, logPrefix);
-            }
-            return handler(...handlerArgs);
-          }) as never);
+          const toolConfig = config as { title?: string; description?: string; annotations: ToolAnnotations };
+          return server.registerTool(name, withToolIdentity(moduleSlug, toolConfig) as never, ((...handlerArgs: unknown[]) =>
+            runLoggedTool(
+              { moduleSlug, name, config: toolConfig },
+              handlerArgs,
+              {
+                assertEnabled: (ctx) => {
+                  const moduleExtra = extraOf(ctx);
+                  const moduleEnabled = moduleSlug === "google-analytics" ? Boolean(moduleExtra?.googleAnalyticsEnabled) : Boolean(moduleExtra?.googleSearchConsoleEnabled);
+                  assertModuleEnabled(moduleEnabled, moduleSlug);
+                },
+                errorResult: (error) => errorResult(error, logPrefix),
+                describe: (args, ctx) => describeGoogleCall(moduleSlug, args, ctx),
+              },
+              () => handler(...handlerArgs)
+            )) as never);
         }) as typeof server.registerTool;
       }
 

@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 
 import { ApiKeys } from "./collections/ApiKeys";
 import { ModuleEntitlements } from "./collections/ModuleEntitlements";
+import { ActivityEvents } from "./collections/ActivityEvents";
 import { OAuthAuthorizationCodes } from "./collections/OAuthAuthorizationCodes";
 import { OAuthClients } from "./collections/OAuthClients";
 import { OAuthGrants } from "./collections/OAuthGrants";
@@ -61,6 +62,7 @@ export default buildConfig({
     Organisations,
     ApiKeys,
     ModuleEntitlements,
+    ActivityEvents,
     OAuthClients,
     OAuthAuthorizationCodes,
     OAuthGrants,

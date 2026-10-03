@@ -10,7 +10,8 @@ See [plan.md](plan.md) for the phased roadmap.
   `session.ts` (cookie/auth), `auth-actions.ts` (login/signup/logout Server Actions —
   account creation is a platform concern, not a module one), `members.ts` +
   `organisation.ts` (generic organisation/membership model), `crypto.ts` (AES-256-GCM
-  for secrets at rest), `modules.ts` (module registry), `entitlements.ts` (per-organisation
+  for secrets at rest), `modules.ts` (module registry), `activity.ts` + `mcp-activity.ts` (the activity log of MCP tool
+  calls - see `ACTIVITY_LOG_PLAN.md`), `entitlements.ts` (per-organisation
   module on/off state — see `MODULE_ENTITLEMENTS_PLAN.md`), `mcp-auth.ts` (the one bearer
   authenticator every MCP route uses — API keys and OAuth access tokens), `oauth/`
   (Epexta's OAuth authorization server for Claude/ChatGPT connectors — see
@@ -25,7 +26,7 @@ See [plan.md](plan.md) for the phased roadmap.
   visitors to `/login?redirectTo=<module path>` (see
   `app/(frontend)/(app)/wordpress/connect/page.tsx`) and get the user back afterwards.
 - `collections/` — **only** truly platform-wide Payload collections (`Users`,
-  `Organisations`, `ModuleEntitlements`, `ApiKeys`, and the four `OAuth*` collections).
+  `Organisations`, `ModuleEntitlements`, `ActivityEvents`, `ApiKeys`, and the four `OAuth*` collections).
   Never put a module-specific collection here.
 - `modules/<name>/` — everything specific to one integration: its own Payload
   collection (referencing `organisation` via a relationship, never re-implementing
@@ -49,8 +50,9 @@ See [plan.md](plan.md) for the phased roadmap.
      (`lib/mcp-auth.ts`) — never mcp-handler's `withMcpAuth` directly, since only the
      wrapper points the route's 401 at its own OAuth metadata and checks OAuth
      tokens' audience. It computes `moduleEnabled` once per request in the `buildExtra`
-     it passes there, and registers every tool through a `registerGatedTool` wrapper
-     (see the WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
+     it passes there, and registers every tool through a `registerGatedTool` wrapper that calls
+     `runLoggedTool` (`lib/mcp-activity.ts`: entitlement check plus the activity log; see the
+     WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
      that reads `extra` directly instead of going through a per-tool helper can
      otherwise skip a per-handler convention entirely. Its `createMcpHandler` options
      are `mcpServerIdentity(mcpPath, [...instructions])` (`lib/mcp-server-identity.ts`),

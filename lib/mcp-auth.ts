@@ -79,7 +79,9 @@ export function withEpextaMcpAuth<TExtra extends Record<string, unknown>>(
         scopes: [],
         expiresAt: caller.expiresAt,
         resource: new URL(resource.url),
-        extra: await buildExtra(caller),
+        // `caller` rides along so lib/mcp-activity.ts can attribute each tool call; routes
+        // read only their own keys from `extra`, so this is invisible to them.
+        extra: { ...(await buildExtra(caller)), caller },
       };
     } catch (error) {
       console.error(`[${logPrefix}] auth threw an error:`, error);

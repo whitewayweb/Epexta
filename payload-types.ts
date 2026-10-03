@@ -71,6 +71,7 @@ export interface Config {
     organisations: Organisation;
     'api-keys': ApiKey;
     'module-entitlements': ModuleEntitlement;
+    'activity-events': ActivityEvent;
     'oauth-clients': OauthClient;
     'oauth-authorization-codes': OauthAuthorizationCode;
     'oauth-grants': OauthGrant;
@@ -99,6 +100,7 @@ export interface Config {
     organisations: OrganisationsSelect<false> | OrganisationsSelect<true>;
     'api-keys': ApiKeysSelect<false> | ApiKeysSelect<true>;
     'module-entitlements': ModuleEntitlementsSelect<false> | ModuleEntitlementsSelect<true>;
+    'activity-events': ActivityEventsSelect<false> | ActivityEventsSelect<true>;
     'oauth-clients': OauthClientsSelect<false> | OauthClientsSelect<true>;
     'oauth-authorization-codes': OauthAuthorizationCodesSelect<false> | OauthAuthorizationCodesSelect<true>;
     'oauth-grants': OauthGrantsSelect<false> | OauthGrantsSelect<true>;
@@ -228,6 +230,30 @@ export interface ModuleEntitlement {
   moduleSlug: 'wordpress' | 'google-search-console' | 'google-analytics';
   enabled?: boolean | null;
   source?: ('manual' | 'billing' | 'migration') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * What AI apps did through Epexta's MCP tools. Read-only; pruned after the retention window.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activity-events".
+ */
+export interface ActivityEvent {
+  id: number;
+  organisation: number | Organisation;
+  user?: (number | null) | User;
+  actorLabel?: string | null;
+  module: 'wordpress' | 'google-search-console' | 'google-analytics';
+  tool: string;
+  kind: 'read' | 'create' | 'update';
+  outcome: 'success' | 'failure';
+  summary: string;
+  siteLabel?: string | null;
+  source: 'api-key' | 'oauth';
+  client?: string | null;
+  errorCode?: ('not_enabled' | 'tool_error') | null;
+  durationMs?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -746,6 +772,10 @@ export interface PayloadLockedDocument {
         value: number | ModuleEntitlement;
       } | null)
     | ({
+        relationTo: 'activity-events';
+        value: number | ActivityEvent;
+      } | null)
+    | ({
         relationTo: 'oauth-clients';
         value: number | OauthClient;
       } | null)
@@ -915,6 +945,27 @@ export interface ModuleEntitlementsSelect<T extends boolean = true> {
   moduleSlug?: T;
   enabled?: T;
   source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "activity-events_select".
+ */
+export interface ActivityEventsSelect<T extends boolean = true> {
+  organisation?: T;
+  user?: T;
+  actorLabel?: T;
+  module?: T;
+  tool?: T;
+  kind?: T;
+  outcome?: T;
+  summary?: T;
+  siteLabel?: T;
+  source?: T;
+  client?: T;
+  errorCode?: T;
+  durationMs?: T;
   updatedAt?: T;
   createdAt?: T;
 }
