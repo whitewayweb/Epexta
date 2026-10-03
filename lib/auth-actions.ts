@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { credentialsSchema, firstIssueMessage, signupSchema } from "./auth-schemas";
 import { getPayloadClient } from "./payload";
 import { createOrganisationForUser } from "./organisation";
-import { safeRedirectPath } from "./redirects";
+import { DEFAULT_SIGNED_IN_PATH, safeRedirectPath } from "./redirects";
 import { clearSessionCookie, setSessionCookie } from "./session";
 
 export interface AuthState {
@@ -21,7 +21,7 @@ export async function signupAction(_prevState: AuthState, formData: FormData): P
     return { error: firstIssueMessage(parsed.error) };
   }
   const { email, password, name } = parsed.data;
-  const redirectTo = safeRedirectPath(formData.get("redirectTo"));
+  const redirectTo = safeRedirectPath(formData.get("redirectTo"), DEFAULT_SIGNED_IN_PATH);
   const organisationNameRaw = formData.get("organisationName");
   const organisationName = typeof organisationNameRaw === "string" ? organisationNameRaw.trim() : "";
 
@@ -58,7 +58,7 @@ export async function loginAction(_prevState: AuthState, formData: FormData): Pr
     return { error: firstIssueMessage(parsed.error) };
   }
   const { email, password } = parsed.data;
-  const redirectTo = safeRedirectPath(formData.get("redirectTo"));
+  const redirectTo = safeRedirectPath(formData.get("redirectTo"), DEFAULT_SIGNED_IN_PATH);
 
   const payload = await getPayloadClient();
   try {

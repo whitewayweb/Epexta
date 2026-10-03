@@ -1,4 +1,4 @@
-import { ChartColumn, KeyRound, type LucideIcon, Plug, Search, Users } from "lucide-react";
+import { ChartColumn, LayoutDashboard, KeyRound, type LucideIcon, Plug, Search, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import { WordPressIcon } from "@/components/site/wordpress-icon";
 import { MODULES, type ModuleSlug } from "@/lib/modules";
@@ -30,6 +30,11 @@ const MODULE_ICONS: Record<ModuleSlug, NavItem["icon"]> = {
   "google-analytics": ChartColumn,
 };
 
+const OVERVIEW: NavGroup = {
+  label: "Overview",
+  items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+};
+
 const SETTINGS: NavGroup = {
   label: "Settings",
   items: [
@@ -45,9 +50,9 @@ const SUBPAGE_LABELS: Record<string, string> = {
   performance: "Post performance",
 };
 
-/** Enabled modules (ungrouped first, then one group per registry group), then settings. */
+/** Dashboard, then enabled modules (ungrouped first, then one group per registry group), then settings. */
 export function buildAppNav(enabledModuleSlugs: readonly ModuleSlug[]): NavGroup[] {
-  const groups: NavGroup[] = [];
+  const groups: NavGroup[] = [OVERVIEW];
   const toItem = (module: (typeof MODULES)[number]): NavItem => ({
     href: module.overviewPath,
     label: module.name,

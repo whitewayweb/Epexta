@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AuthCard } from "@/components/auth/auth-card";
 import { SignupForm } from "@/components/auth/SignupForm";
-import { safeRedirectPath } from "@/lib/redirects";
+import { DEFAULT_SIGNED_IN_PATH, safeRedirectPath } from "@/lib/redirects";
 import { getCurrentUser } from "@/lib/session";
 
 export default async function SignupPage({
@@ -12,7 +12,7 @@ export default async function SignupPage({
   const { redirectTo } = await searchParams;
   const user = await getCurrentUser();
   if (user) {
-    redirect(safeRedirectPath(redirectTo));
+    redirect(safeRedirectPath(redirectTo, DEFAULT_SIGNED_IN_PATH));
   }
 
   return (
