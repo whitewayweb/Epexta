@@ -269,8 +269,17 @@ function imageUploadInputSchema(defaultFilename: string) {
   return z.object({
     siteId: siteIdSchema,
     postId: z.number().int(),
-    imageUrl: z.string().url().optional(),
-    imageBase64: z.string().optional(),
+    imageUrl: z
+      .string()
+      .url()
+      .optional()
+      .describe("Publicly fetchable URL of the image. Use this when the image is already hosted somewhere."),
+    imageBase64: z
+      .string()
+      .optional()
+      .describe(
+        "Base64-encoded image bytes (no data: prefix needed), for an image that exists only locally, such as one you generated or saved in a sandbox. Fine for a compressed JPEG/WebP of a few hundred KB; no external host is required."
+      ),
     mimeType: z
       .string()
       .optional()
@@ -642,7 +651,7 @@ const rawHandler = createMcpHandler(
       title: "Upload Image",
       annotations: CREATE_TOOL,
       description:
-        "Convert an image to JPEG and upload it to a post's WordPress media library for use inside the post body - it does not change the post's featured image (use set_featured_image for that). Returns the uploaded media, including source_url; use that URL as the src of an <img> tag in contentHtml via create_post/update_post. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given.",
+        "Convert an image to JPEG and upload it to a post's WordPress media library for use inside the post body - it does not change the post's featured image (use set_featured_image for that). Returns the uploaded media, including source_url; use that URL as the src of an <img> tag in contentHtml via create_post/update_post. The WordPress media Title and Alternative Text are both set to the post title. Provide exactly one of imageUrl (an already-hosted image) or imageBase64 (image bytes you hold locally - no third-party hosting is needed; compress to a modest JPEG first).",
       inputSchema: imageUploadInputSchema("image.jpg"),
     },
     async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename }, ctx) => {
@@ -668,7 +677,7 @@ const rawHandler = createMcpHandler(
       title: "Set Featured Image",
       annotations: CREATE_TOOL,
       description:
-        "Convert an image to JPEG, upload it, and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide either imageUrl (a URL to fetch, e.g. one ChatGPT already generated and hosted) or imageBase64 (raw image data). Exactly one of imageUrl or imageBase64 must be given. For images inside the post body instead, use upload_image.",
+        "Convert an image to JPEG, upload it, and set it as a post's featured image. The WordPress media Title and Alternative Text are both set to the post title. Provide exactly one of imageUrl (an already-hosted image) or imageBase64 (image bytes you hold locally - no third-party hosting is needed; compress to a modest JPEG first). For images inside the post body instead, use upload_image.",
       inputSchema: imageUploadInputSchema("featured-image.jpg"),
     },
     async ({ siteId, postId, imageUrl, imageBase64, mimeType, filename }, ctx) => {

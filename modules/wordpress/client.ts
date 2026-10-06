@@ -471,7 +471,7 @@ export function createWordPressClient(credentials: WordPressCredentials) {
     _sourceMimeType: string | undefined,
     postTitle: string
   ) {
-    const buffer = Buffer.from(base64Data, "base64");
+    const buffer = Buffer.from(base64Data.replace(/^data:[^,]*,/, ""), "base64");
     return uploadMediaBuffer(await convertToJpeg(buffer), jpegFilename(filename), JPEG_MIME_TYPE, postTitle);
   }
 
