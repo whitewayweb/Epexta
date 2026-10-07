@@ -1,7 +1,7 @@
 import { getAppUrl } from "@/lib/app-url";
 import { decrypt, encrypt } from "@/lib/crypto";
 
-// Epexta only brokers LinkedIn's OAuth login for the WP Social Publisher plugin: it holds
+// Epexta only brokers LinkedIn's OAuth login for the Epexta Social Publisher plugin: it holds
 // the app's client secret, exchanges the code, and hands the resulting access token to
 // the plugin once. Nothing is stored - `state` and the handoff code are each an
 // AES-GCM-sealed, expiring blob (lib/crypto.ts), so there is no collection to clean up.

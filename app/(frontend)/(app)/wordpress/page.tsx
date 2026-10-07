@@ -1,6 +1,7 @@
-import { Plus } from "lucide-react";
+import { ExternalLinkIcon, Plus, Share2 } from "lucide-react";
 import Link from "next/link";
 import { ModuleNotEnabled } from "@/components/module-not-enabled";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { WordPressIcon } from "@/components/site/wordpress-icon";
@@ -10,6 +11,7 @@ import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { SitesTable } from "@/modules/wordpress/SitesTable";
+import { SOCIAL_PUBLISHER_DESCRIPTION, SOCIAL_PUBLISHER_TITLE, SOCIAL_PUBLISHER_URL } from "@/modules/wordpress/social-publisher";
 
 const OVERVIEW_PATH = "/wordpress";
 const ADD_SITE_PATH = "/wordpress/connect";
@@ -73,7 +75,20 @@ export default async function WordPressOverviewPage() {
           )}
         </Empty>
       ) : (
-        <SitesTable sites={sites} editable={isAdmin} />
+        <>
+          <SitesTable sites={sites} editable={isAdmin} />
+          <Alert>
+            <Share2 />
+            <AlertTitle>{SOCIAL_PUBLISHER_TITLE}</AlertTitle>
+            <AlertDescription>
+              {SOCIAL_PUBLISHER_DESCRIPTION}{" "}
+              <a href={SOCIAL_PUBLISHER_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1">
+                View the plugin
+                <ExternalLinkIcon className="size-3" />
+              </a>
+            </AlertDescription>
+          </Alert>
+        </>
       )}
     </div>
   );

@@ -21,7 +21,7 @@ export default function TermsPage() {
           you connect (for example WordPress).
         </li>
         <li>
-          <strong>A hosted LinkedIn sign-in service</strong> for WordPress plugins such as WP Social Publisher. We hold
+          <strong>A hosted LinkedIn sign-in service</strong> for WordPress plugins such as Epexta Social Publisher. We hold
           the LinkedIn app credentials so you do not need your own LinkedIn developer app. The plugin then publishes
           posts directly from your website to LinkedIn.
         </li>

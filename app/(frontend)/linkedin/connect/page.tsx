@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-// Consent step of the LinkedIn broker for the WP Social Publisher plugin - see
+// Consent step of the LinkedIn broker for the Epexta Social Publisher plugin - see
 // modules/linkedin/oauth.ts. The user must see which site will receive the LinkedIn
 // access; without this step a crafted link could deliver a token to any site.
 export default async function LinkedInConnectPage({
@@ -26,7 +26,7 @@ export default async function LinkedInConnectPage({
 
   if (!returnUrl) {
     return (
-      <AuthCard title="Can't connect LinkedIn" description="Start again from the LinkedIn settings in WP Social Publisher on your WordPress site.">
+      <AuthCard title="Can't connect LinkedIn" description="Start again from the LinkedIn settings in Epexta Social Publisher on your WordPress site.">
         <Button variant="outline" className="w-full" render={<Link href="/" />}>
           Back to Epexta
         </Button>

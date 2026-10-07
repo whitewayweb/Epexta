@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { MODULES } from "@/lib/modules";
+import { SOCIAL_PUBLISHER_URL } from "@/modules/wordpress/social-publisher";
 import {
   Boxes,
   CircleCheck,
@@ -133,7 +134,12 @@ const FAQS = [
   {
     question: "Do I need to install a WordPress plugin?",
     answer:
-      "No plugin required. Epexta talks to your site through the standard WordPress REST API using an Application Password you generate from wp-admin.",
+      "No plugin required. Epexta talks to your site through the standard WordPress REST API using an Application Password you generate from wp-admin. The optional Epexta Social Publisher plugin adds automatic LinkedIn sharing.",
+  },
+  {
+    question: "Can new posts be shared to LinkedIn automatically?",
+    answer:
+      "Yes, with the free Epexta Social Publisher plugin. Once it's installed on your WordPress site, posts you publish through Epexta are shared to your LinkedIn profile or company pages straight from your site. LinkedIn sign-in needs renewing about every 60 days.",
   },
   {
     question: "Can the AI delete anything on my site?",
@@ -252,7 +258,7 @@ export default function HomePage() {
                 Connect Claude or ChatGPT in three steps
               </h2>
               <p className="mt-3 text-muted-foreground">
-                No plugin to install on WordPress, just an Application Password and a connector URL.
+                No plugin needed to publish, just an Application Password and a connector URL.
               </p>
             </div>
             <div className="mt-14 grid gap-8 md:grid-cols-3">
@@ -271,6 +277,18 @@ export default function HomePage() {
                 Connect {wordpress.name}
               </Button>
             </div>
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              Want every published post on LinkedIn too? The free{" "}
+              <a
+                href={SOCIAL_PUBLISHER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Epexta Social Publisher plugin
+              </a>{" "}
+              shares new posts for you.
+            </p>
           </div>
         </section>
 

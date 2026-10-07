@@ -189,6 +189,17 @@ fixed colour, so both themes work.
     Default to one route per module; only share a route when a real client
     constraint like this forces it, and document the reasoning in that module's
     own plan doc the way `GOOGLE_PERFORMANCE_PLAN.md` does.
+- The LinkedIn broker (`modules/linkedin`) is not an MCP module: it only does LinkedIn's OAuth
+  login for the free Epexta Social Publisher WordPress plugin (it holds the LinkedIn app secret
+  so users need no developer app). Routes: `/linkedin/connect` (consent page, behind the
+  platform login), `/api/linkedin/oauth/callback`, and `POST /api/linkedin/token` (called
+  server-to-server by the plugin's PHP). It stores nothing - `state` and the handoff code are
+  AES-GCM-sealed, expiring blobs (`lib/crypto.ts`), and the access token never appears in a
+  URL. The plugin shares posts from the user's own site straight to LinkedIn; Epexta never
+  receives them, so don't describe Epexta as running or tracking those shares. The plugin
+  URL and promo copy shown on `/wordpress`, `/wordpress/connect` and the landing page live in
+  `modules/wordpress/social-publisher.ts`. Changing `LINKEDIN_OAUTH_REDIRECT_URI` or the
+  callback path means re-registering the redirect URL on the LinkedIn app.
 - Payload's own REST API lives at `/api/cms/*` (`app/api/cms/[...slug]/route.ts`).
 - Payload's admin panel is `/admin`.
 - Each module's onboarding UI is `/<name>/connect`.
@@ -401,7 +412,7 @@ a parallel structure.
   `DATABASE_URL` per environment, so Production and Preview never share a database),
   `PAYLOAD_SECRET`, `ENCRYPTION_KEY` (32-byte hex —
   `openssl rand -hex 32`), `APP_URL` (canonical origin — the OAuth issuer; changing it
-  invalidates every connected app), `CRON_SECRET`. See `.env.local.example`.
+  invalidates every connected app), `CRON_SECRET`, and `LINKEDIN_OAUTH_CLIENT_ID`/`LINKEDIN_OAUTH_CLIENT_SECRET` for the LinkedIn broker. See `.env.local.example`.
 - Changing an MCP route's URL breaks any already-registered Claude/ChatGPT connector
   — and every OAuth grant for it, since tokens are bound to the route's exact URL —
   flag this explicitly before renaming a module's route path.
