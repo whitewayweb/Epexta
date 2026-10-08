@@ -2,7 +2,7 @@ import { Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { getOrganisationMembers, getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { MembersPanel } from "@/modules/wordpress/MembersPanel";
 
 const MEMBERS_PATH = "/settings/members";

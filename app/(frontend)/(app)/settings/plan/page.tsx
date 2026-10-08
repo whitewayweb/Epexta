@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { getToolCallsToday } from "@/lib/plans/usage";
 import { parseUsageRange, type UsageRange } from "@/lib/plans/usage-ranges";
 import { getUsageHistory } from "@/lib/plans/usage-rollup";

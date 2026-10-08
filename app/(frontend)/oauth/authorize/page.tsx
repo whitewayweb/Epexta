@@ -6,11 +6,11 @@ import { redirect } from "next/navigation";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { logoutAction } from "@/lib/auth-actions";
+import { logoutAction } from "@/lib/auth/actions";
 import { approveAuthorizationAction, denyAuthorizationAction } from "@/lib/oauth/actions";
 import { oauthProvider } from "@/lib/oauth/provider";
 import { getOrganisationName, getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 
 export const metadata: Metadata = {
   title: "Connect an app · Epexta",

@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthCard } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
-import { logoutAction } from "@/lib/auth-actions";
-import { requireUser } from "@/lib/session";
+import { logoutAction } from "@/lib/auth/actions";
+import { requireUser } from "@/lib/auth/session";
 import { continueToLinkedInAction } from "@/modules/linkedin/actions";
 import { parseReturnUrl } from "@/modules/linkedin/oauth";
 

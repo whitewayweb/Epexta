@@ -5,7 +5,7 @@ import { z } from "zod";
 import { isModuleEnabled, requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getPayloadClient } from "@/lib/payload";
 import { PlanLimitError } from "@/lib/plans/definitions";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import {
   addOrganisationMember,
   createOrganisationForUser,

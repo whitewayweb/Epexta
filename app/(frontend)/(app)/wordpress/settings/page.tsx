@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { WordPressIcon } from "@/components/site/wordpress-icon";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 
 const SETTINGS_PATH = "/wordpress/settings";
 

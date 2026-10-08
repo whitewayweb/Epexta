@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getEnabledModules } from "@/lib/entitlements";
 import { MODULES } from "@/lib/modules";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 
 const DASHBOARD_PATH = "/dashboard";
 

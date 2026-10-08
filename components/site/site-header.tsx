@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { LogoMark } from "@/components/site/logo-mark";
 import { Button } from "@/components/ui/button";
-import { logoutAction } from "@/lib/auth-actions";
-import { getCurrentUser } from "@/lib/session";
+import { logoutAction } from "@/lib/auth/actions";
+import { getCurrentUser } from "@/lib/auth/session";
 
 const NAV_LINKS = [
   { href: "#how-it-works", label: "How it works" },

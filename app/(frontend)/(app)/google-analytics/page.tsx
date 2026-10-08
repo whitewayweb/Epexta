@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { listMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import { MappingsTable } from "@/modules/google-connections/MappingsTable";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";

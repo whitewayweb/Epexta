@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getPayloadClient } from "./payload";
+import { getPayloadClient } from "../payload";
 
 const COOKIE_NAME = "payload-token";
 

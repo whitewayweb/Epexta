@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useActionState, useState, type FormEvent } from "react";
-import { signupAction, type AuthState } from "@/lib/auth-actions";
-import { signupSchema } from "@/lib/auth-schemas";
+import { signupAction, type AuthState } from "@/lib/auth/actions";
+import { signupSchema } from "@/lib/auth/schemas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

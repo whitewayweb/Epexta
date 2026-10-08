@@ -1,6 +1,6 @@
-import { getPayloadClient } from "./payload";
-import { relationshipId } from "./relationship";
-import { sha256Hex } from "./secret-hash";
+import { getPayloadClient } from "../payload";
+import { relationshipId } from "../relationship";
+import { sha256Hex } from "../secret-hash";
 import type { ApiKey } from "@/payload-types";
 
 export interface DisplayApiKey {

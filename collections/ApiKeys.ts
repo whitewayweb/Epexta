@@ -3,7 +3,7 @@ import { serverOnlyAccess } from "../lib/collection-access";
 
 // Platform-wide (not WordPress-specific): a user can hold several named API keys,
 // each usable as a bearer token against any module's MCP endpoint. Access is locked
-// down to superadmins only because every mutation goes through lib/api-keys.ts,
+// down to superadmins only because every mutation goes through lib/auth/api-keys.ts,
 // which checks the caller's own user id with overrideAccess: true - see that file's
 // listApiKeys/createApiKey/deleteApiKey for the actual authorization checks.
 export const ApiKeys: CollectionConfig = {

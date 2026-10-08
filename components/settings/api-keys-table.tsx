@@ -23,7 +23,7 @@ import {
   deleteApiKeyAction,
   type CreateApiKeyState,
   type DeleteApiKeyState,
-} from "@/lib/api-key-actions";
+} from "@/lib/auth/api-key-actions";
 import { formatDate } from "@/lib/format-date";
 
 interface ApiKeyRow {

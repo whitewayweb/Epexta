@@ -32,7 +32,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { logoutAction } from "@/lib/auth-actions";
+import { logoutAction } from "@/lib/auth/actions";
 import type { OrganisationRole } from "@/lib/members";
 import type { ModuleSlug } from "@/lib/modules";
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MODULES } from "@/lib/modules";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { handleCallback } from "@/modules/google-connections";
 
 // Single shared callback for both Google Site Hub modules - one Google OAuth client

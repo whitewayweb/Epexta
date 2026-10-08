@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { listMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import { PerformanceLookupForm } from "@/modules/google-connections/PerformanceLookupForm";
 import { getPerformanceAction } from "@/modules/google-analytics/actions";

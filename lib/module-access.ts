@@ -1,6 +1,6 @@
 import { requireModuleEnabledForUser } from "./entitlements";
 import { getUserOrganisation } from "./organisation";
-import { getCurrentUser } from "./session";
+import { getCurrentUser } from "./auth/session";
 import type { ModuleSlug } from "./modules";
 
 export interface AuthorisedActor {

@@ -5,7 +5,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getEnabledModules } from "@/lib/entitlements";
 import { getOrganisationName, getUserOrganisation } from "@/lib/organisation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 
 /**
  * Shared chrome for every page after login. Auth itself is enforced per-page (via

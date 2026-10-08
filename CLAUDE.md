@@ -7,7 +7,7 @@ See [plan.md](plan.md) for the phased roadmap.
 ## Architecture: platform vs. modules
 
 - `lib/` — platform code shared by every module: `payload.ts` (Payload client),
-  `session.ts` (cookie/auth), `auth-actions.ts` (login/signup/logout Server Actions —
+  `auth/session.ts` (cookie/auth), `auth/actions.ts` (login/signup/logout Server Actions —
   account creation is a platform concern, not a module one), `members.ts` +
   `organisation.ts` (generic organisation/membership model), `crypto.ts` (AES-256-GCM
   for secrets at rest), `modules.ts` (module registry), `activity.ts` + `mcp/logged-tool.ts` (the activity log of MCP tool
@@ -226,7 +226,7 @@ fixed colour, so both themes work.
   anonymous visitor to `/login?redirectTo=/<name>/connect` (or `/signup?redirectTo=...`)
   instead of rendering its own auth form, so the user lands back on that module's
   connect page — with its WordPress-credential fields, for example — right after
-  authenticating. Both `loginAction`/`signupAction` (`lib/auth-actions.ts`) only ever
+  authenticating. Both `loginAction`/`signupAction` (`lib/auth/actions.ts`) only ever
   redirect to a same-site `redirectTo` value (rejecting anything not starting with a
   single `/`), to avoid an open redirect.
 
@@ -333,7 +333,7 @@ their own connections (Google reporting). A connection is deleted with its user 
 `ON DELETE CASCADE`); removing a user from an organisation leaves their connections
 unreachable until a superadmin deletes them in `/admin`.
 
-Never let a public signup (`lib/auth-actions.ts` `signupAction`) set its own role —
+Never let a public signup (`lib/auth/actions.ts` `signupAction`) set its own role —
 `Users.ts`'s `beforeChange` hook forces `customer` unless the creating request is
 already an authenticated superadmin. The very first user ever created becomes
 `superadmin` automatically (bootstrap case).
@@ -384,7 +384,7 @@ already an authenticated superadmin. The very first user ever created becomes
   code into a `"use client"` component at runtime. Type-only imports
   (`import type { ... }`) are fine — they're erased at compile time.
 - All mutations from client components go through `"use server"` action files —
-  `lib/auth-actions.ts` for login/signup/logout, `modules/<name>/actions.ts` for
+  `lib/auth/actions.ts` for login/signup/logout, `modules/<name>/actions.ts` for
   everything module-specific — invoked via `useActionState`, never via a
   hand-rolled `fetch` to a REST endpoint from client code.
 

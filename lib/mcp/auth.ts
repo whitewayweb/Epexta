@@ -1,7 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { withMcpAuth } from "mcp-handler";
 import { getAppUrl } from "../app-url";
-import { getUserByApiKey } from "../api-keys";
+import { getUserByApiKey } from "../auth/api-keys";
 import { oauthProvider, type McpPath } from "../oauth/provider";
 import { getUserOrganisation } from "../organisation";
 

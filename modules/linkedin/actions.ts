@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { buildAuthorizationUrl, createState, parseReturnUrl } from "./oauth";
 
 // Posted by the consent page (app/(frontend)/linkedin/connect). Re-validates the return

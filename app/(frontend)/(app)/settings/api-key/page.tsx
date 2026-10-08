@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeysTable } from "@/components/settings/api-keys-table";
-import { listApiKeys } from "@/lib/api-keys";
-import { requireUser } from "@/lib/session";
+import { listApiKeys } from "@/lib/auth/api-keys";
+import { requireUser } from "@/lib/auth/session";
 
 const API_KEY_PATH = "/settings/api-key";
 

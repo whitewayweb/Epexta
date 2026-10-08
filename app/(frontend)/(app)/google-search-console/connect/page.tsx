@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { listConnectionsForCapability } from "@/modules/google-connections";
 import { ConnectionsPanel } from "@/modules/google-connections/ConnectionsPanel";
 import {

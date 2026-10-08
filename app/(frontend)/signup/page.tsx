@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AuthCard } from "@/components/auth/auth-card";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { DEFAULT_SIGNED_IN_PATH, safeRedirectPath } from "@/lib/redirects";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export default async function SignupPage({
   searchParams,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { createHandoff, exchangeCodeForToken, parseReturnUrl, readState } from "@/modules/linkedin/oauth";
 
 // LinkedIn redirects here (register this URL on the LinkedIn app). Never log the query

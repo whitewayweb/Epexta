@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getUserOrganisation } from "@/lib/organisation";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { authorizePathForQuery } from "./authorize";
 import { oauthProvider } from "./provider";
 

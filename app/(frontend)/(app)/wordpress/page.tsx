@@ -8,7 +8,7 @@ import { WordPressIcon } from "@/components/site/wordpress-icon";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { getSiteLimitState, listWordPressConnections } from "@/modules/wordpress/organisation";
 import { SitesTable } from "@/modules/wordpress/SitesTable";
 import { SOCIAL_PUBLISHER_DESCRIPTION, SOCIAL_PUBLISHER_TITLE, SOCIAL_PUBLISHER_URL } from "@/modules/wordpress/social-publisher";

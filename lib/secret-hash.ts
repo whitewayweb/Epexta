@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 /**
- * One-way digest for bearer secrets stored at rest - API keys (lib/api-keys.ts) and OAuth
+ * One-way digest for bearer secrets stored at rest - API keys (lib/auth/api-keys.ts) and OAuth
  * authorization codes/tokens (lib/oauth/). The raw value is shown to its holder once and
  * never stored; looking one up means hashing the presented value and matching on this.
  * Plain SHA-256 (no salt/stretching) is deliberate: these are 256-bit random values, not

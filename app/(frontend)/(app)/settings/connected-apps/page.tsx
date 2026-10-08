@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getEnabledModules } from "@/lib/entitlements";
 import { oauthProvider } from "@/lib/oauth/provider";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 
 const CONNECTED_APPS_PATH = "/settings/connected-apps";
 

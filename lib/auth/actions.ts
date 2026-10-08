@@ -1,10 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { credentialsSchema, firstIssueMessage, signupSchema } from "./auth-schemas";
-import { getPayloadClient } from "./payload";
-import { createOrganisationForUser } from "./organisation";
-import { DEFAULT_SIGNED_IN_PATH, safeRedirectPath } from "./redirects";
+import { credentialsSchema, firstIssueMessage, signupSchema } from "./schemas";
+import { getPayloadClient } from "../payload";
+import { createOrganisationForUser } from "../organisation";
+import { DEFAULT_SIGNED_IN_PATH, safeRedirectPath } from "../redirects";
 import { clearSessionCookie, setSessionCookie } from "./session";
 
 export interface AuthState {

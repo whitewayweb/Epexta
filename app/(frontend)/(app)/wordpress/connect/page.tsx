@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getUserOrganisation } from "@/lib/organisation";
-import { requireUser } from "@/lib/session";
+import { requireUser } from "@/lib/auth/session";
 import { ConnectionForm } from "@/modules/wordpress/ConnectionForm";
 import { getOwnedWordPressConnection, getSiteLimitState } from "@/modules/wordpress/organisation";
 import { SOCIAL_PUBLISHER_DESCRIPTION, SOCIAL_PUBLISHER_TITLE, SOCIAL_PUBLISHER_URL } from "@/modules/wordpress/social-publisher";

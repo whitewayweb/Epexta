@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { createApiKey } from "../api-keys";
+import { createApiKey } from "../auth/api-keys";
 import { authenticateMcpBearer } from "./auth";
 import { createOAuthFixtures, PKCE, REDIRECT_URI } from "../oauth/test-fixtures";
 import { exchangeAuthorizationCode } from "../oauth/tokens";

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Shared by the signup/login forms (client-side, for inline errors) and the auth Server
- * Actions (the authoritative check). Kept out of `auth-actions.ts` because a "use server"
+ * Actions (the authoritative check). Kept out of `auth/actions.ts` because a "use server"
  * file may only export async functions. No server-only imports here.
  */
 export const credentialsSchema = z.object({
