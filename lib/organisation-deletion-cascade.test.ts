@@ -6,7 +6,7 @@ import { getPayloadClient } from "./payload";
 // flow: Payload's Postgres adapter defaults every relationship FK to ON DELETE SET NULL
 // regardless of the field's own `required: true`, so deleting an Organisation crashed
 // with a NOT NULL constraint violation the moment any required-relationship child row
-// (a WordPress connection, a Google connection, a mapping, an entitlement, a Google OAuth
+// (a WordPress connection, a Google connection, a mapping, an entitlement, a plan, a usage count, a Google OAuth
 // state, an OAuth grant/code/token) existed - it never actually cascaded. This exercises the real fix: deleting an
 // organisation with a full set of Google Site Hub data attached must succeed and every
 // row that should be gone must actually be gone - not just that the delete call itself
@@ -41,6 +41,23 @@ describe("deleting an organisation cascades correctly", () => {
     const entitlement = await payload.create({
       collection: "module-entitlements",
       data: { organisation: Number(organisationId), moduleSlug: "google-search-console", enabled: true },
+      overrideAccess: true,
+    });
+
+    const plan = await payload.create({
+      collection: "organisation-plans",
+      data: { organisation: Number(organisationId), plan: "pro", status: "active" },
+      overrideAccess: true,
+    });
+    const usage = await payload.create({
+      collection: "usage-daily",
+      data: { organisation: Number(organisationId), day: "2026-10-08", toolCalls: 3 },
+      overrideAccess: true,
+    });
+
+    const rollup = await payload.create({
+      collection: "usage-rollups",
+      data: { organisation: Number(organisationId), day: "2026-10-01", module: "wordpress", tool: "list_posts", kind: "read", calls: 4, failures: 1, planLimited: 0 },
       overrideAccess: true,
     });
 
@@ -152,6 +169,9 @@ describe("deleting an organisation cascades correctly", () => {
     await expect(
       payload.findByID({ collection: "module-entitlements", id: entitlement.id, overrideAccess: true })
     ).rejects.toBeTruthy();
+    await expect(payload.findByID({ collection: "organisation-plans", id: plan.id, overrideAccess: true })).rejects.toBeTruthy();
+    await expect(payload.findByID({ collection: "usage-daily", id: usage.id, overrideAccess: true })).rejects.toBeTruthy();
+    await expect(payload.findByID({ collection: "usage-rollups", id: rollup.id, overrideAccess: true })).rejects.toBeTruthy();
     await expect(
       payload.findByID({ collection: "wordpress-connections", id: wordpressConnection.id, overrideAccess: true })
     ).rejects.toBeTruthy();

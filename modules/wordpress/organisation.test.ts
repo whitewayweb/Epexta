@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { describe, expect, it } from "vitest";
 import { getPayloadClient } from "../../lib/payload";
+import { PlanLimitError } from "../../lib/plans";
 import { createOrReplaceMapping as createOrReplaceSearchConsoleMapping } from "../google-search-console/mappings";
 import { createOrReplaceMapping as createOrReplaceAnalyticsMapping } from "../google-analytics/mappings";
 import {
@@ -9,6 +10,7 @@ import {
   getOwnedWordPressConnection,
   getWordPressConnection,
   listWordPressConnections,
+  listWordPressSiteUrls,
   WordPressConnectionInUseError,
 } from "./organisation";
 
@@ -278,5 +280,92 @@ describe("wordpress-connections per-user ownership", () => {
     await expect(createWordPressConnection(organisationId, firstId, credentials(siteUrl, "other"))).rejects.toBeTruthy();
 
     await cleanup(fixtures);
+  });
+});
+
+describe("createWordPressConnection and the plan's site limit", () => {
+  async function makeOrganisation() {
+    const payload = await getPayloadClient();
+    const suffix = randomUUID();
+    const users = await Promise.all(
+      ["a", "b"].map((name) =>
+        payload.create({
+          collection: "users",
+          data: { email: `wp-limit-${name}-${suffix}@example.com`, password: "test-password-123", role: "customer" },
+        })
+      )
+    );
+    const org = await payload.create({
+      collection: "organisations",
+      data: { name: `wp-limit-org-${suffix}`, members: users.map((user) => ({ user: Number(user.id), role: "admin" as const })) },
+      overrideAccess: true,
+    });
+    return {
+      payload,
+      organisationId: String(org.id),
+      userIds: users.map((user) => String(user.id)),
+      cleanup: async () => {
+        await payload.delete({ collection: "organisations", id: org.id, overrideAccess: true }).catch(() => {});
+        for (const user of users) await payload.delete({ collection: "users", id: user.id, overrideAccess: true }).catch(() => {});
+      },
+    };
+  }
+
+  const site = (n: number, suffix: string) => ({ siteUrl: `https://limit-${n}-${suffix}.example.com`, username: "admin", appPassword: "fake app password" });
+
+  it("stops a Free organisation adding a second site, but lets a colleague add the same site", async () => {
+    const { organisationId, userIds, cleanup } = await makeOrganisation();
+    const suffix = randomUUID();
+
+    await createWordPressConnection(organisationId, userIds[0], site(1, suffix));
+    await expect(createWordPressConnection(organisationId, userIds[0], site(2, suffix))).rejects.toBeInstanceOf(PlanLimitError);
+    // Same site, other member's credentials: still one site, so still allowed.
+    await createWordPressConnection(organisationId, userIds[1], site(1, suffix));
+    expect((await listWordPressSiteUrls(organisationId)).size).toBe(1);
+
+    await cleanup();
+  });
+
+  it("allows as many sites as the plan includes, then refuses the next", async () => {
+    const { payload, organisationId, userIds, cleanup } = await makeOrganisation();
+    await payload.create({
+      collection: "organisation-plans",
+      data: { organisation: Number(organisationId), plan: "pro", status: "active" },
+      overrideAccess: true,
+    });
+    const suffix = randomUUID();
+
+    for (let n = 1; n <= 5; n++) await createWordPressConnection(organisationId, userIds[0], site(n, suffix));
+    await expect(createWordPressConnection(organisationId, userIds[0], site(6, suffix))).rejects.toBeInstanceOf(PlanLimitError);
+    expect((await listWordPressSiteUrls(organisationId)).size).toBe(5);
+
+    await cleanup();
+  });
+
+  it("never ends up over the limit when adds race, and keeps what a downgrade left in place", async () => {
+    const { payload, organisationId, userIds, cleanup } = await makeOrganisation();
+    const suffix = randomUUID();
+
+    const results = await Promise.allSettled([1, 2, 3, 4].map((n) => createWordPressConnection(organisationId, userIds[0], site(n, suffix))));
+    expect((await listWordPressSiteUrls(organisationId)).size).toBeLessThanOrEqual(1);
+    for (const result of results) {
+      if (result.status === "rejected") expect(result.reason).toBeInstanceOf(PlanLimitError);
+    }
+
+    // A plan that shrinks never deletes sites: connect two under Pro, drop to Free, both remain.
+    await cleanup();
+    const second = await makeOrganisation();
+    const record = await second.payload.create({
+      collection: "organisation-plans",
+      data: { organisation: Number(second.organisationId), plan: "pro", status: "active" },
+      overrideAccess: true,
+    });
+    await createWordPressConnection(second.organisationId, second.userIds[0], site(1, suffix));
+    await createWordPressConnection(second.organisationId, second.userIds[0], site(2, suffix));
+    await payload.update({ collection: "organisation-plans", id: record.id, data: { status: "suspended" }, overrideAccess: true });
+    expect((await listWordPressSiteUrls(second.organisationId)).size).toBe(2);
+    await expect(createWordPressConnection(second.organisationId, second.userIds[0], site(3, suffix))).rejects.toBeInstanceOf(PlanLimitError);
+
+    await second.cleanup();
   });
 });

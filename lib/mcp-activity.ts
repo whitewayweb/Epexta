@@ -4,6 +4,9 @@ import { runAfterResponse } from "./after-response";
 import { ModuleNotEnabledError } from "./entitlements";
 import type { McpCaller } from "./mcp-auth";
 import type { ModuleSlug } from "./modules";
+import { getOrganisationPlan } from "./organisation-plan";
+import { PlanLimitError } from "./plans";
+import { consumeToolCall } from "./usage";
 
 /** What a module can tell the log about one call, from the tool's arguments. */
 export interface ActivityDescription {
@@ -31,6 +34,22 @@ function callerOf(ctx: ServerContext): McpCaller | undefined {
   return (ctx.http?.authInfo?.extra as { caller?: McpCaller } | undefined)?.caller;
 }
 
+/**
+ * Counts this call against the organisation's daily allowance (lib/usage.ts), returning the
+ * refusal to send back when it is used up. Metering is fair-use, not security: if it can't
+ * be read the call goes ahead rather than failing every tool for a bookkeeping problem.
+ */
+async function reserveToolCall(organisationId: string): Promise<PlanLimitError | null> {
+  try {
+    const plan = await getOrganisationPlan(organisationId);
+    const { allowed } = await consumeToolCall(organisationId, plan.dailyToolCalls);
+    return allowed ? null : new PlanLimitError("toolCalls", plan);
+  } catch (error) {
+    console.error("[mcp] could not meter a tool call:", error);
+    return null;
+  }
+}
+
 function resultText(result: unknown): string {
   const content = (result as { content?: { type?: string; text?: string }[] }).content;
   return content?.find((part) => part.type === "text")?.text ?? "";
@@ -38,11 +57,12 @@ function resultText(result: unknown): string {
 
 /**
  * The one place every MCP tool call passes through, from each route's `registerGatedTool`:
- * checks the module entitlement, runs the tool, and records the outcome in the activity log
- * (lib/activity.ts) after the response, so a logging problem never touches the tool's result.
- * Routing both through here is what makes "every tool is gated and logged" structural - no
- * tool can opt out of either. A call that only asks the user to choose (an elicitation) did
- * nothing yet, so it isn't recorded.
+ * checks the module entitlement and the plan's daily allowance, runs the tool, and records the
+ * outcome in the activity log (lib/activity.ts) after the response, so a logging problem never
+ * touches the tool's result. Routing all of it through here is what makes "every tool is gated,
+ * metered and logged" structural - no tool can opt out of any of them. A call that only asks
+ * the user to choose (an elicitation) did nothing yet, so it isn't recorded, though it still
+ * counts against the allowance.
  */
 export async function runLoggedTool(
   tool: RegisteredTool,
@@ -57,17 +77,24 @@ export async function runLoggedTool(
   const ctx = handlerArgs[handlerArgs.length - 1] as ServerContext;
   const started = Date.now();
 
+  const caller = callerOf(ctx);
   let result: unknown;
-  let errorCode: "not_enabled" | "tool_error" | null = null;
+  let errorCode: "not_enabled" | "plan_limit" | "tool_error" | null = null;
   try {
     hooks.assertEnabled(ctx);
   } catch (error) {
     result = hooks.errorResult(error);
     errorCode = error instanceof ModuleNotEnabledError ? "not_enabled" : null;
   }
+  if (result === undefined && caller?.organisationId) {
+    const limitError = await reserveToolCall(caller.organisationId);
+    if (limitError) {
+      result = { content: [{ type: "text" as const, text: `Error: ${limitError.message}` }], isError: true };
+      errorCode = "plan_limit";
+    }
+  }
   result ??= await run();
 
-  const caller = callerOf(ctx);
   const isToolResult = Array.isArray((result as { content?: unknown })?.content);
   if (!caller?.organisationId || !isToolResult) return result;
 

@@ -71,6 +71,9 @@ export interface Config {
     organisations: Organisation;
     'api-keys': ApiKey;
     'module-entitlements': ModuleEntitlement;
+    'organisation-plans': OrganisationPlan;
+    'usage-daily': UsageDaily;
+    'usage-rollups': UsageRollup;
     'activity-events': ActivityEvent;
     'oauth-clients': OauthClient;
     'oauth-authorization-codes': OauthAuthorizationCode;
@@ -100,6 +103,9 @@ export interface Config {
     organisations: OrganisationsSelect<false> | OrganisationsSelect<true>;
     'api-keys': ApiKeysSelect<false> | ApiKeysSelect<true>;
     'module-entitlements': ModuleEntitlementsSelect<false> | ModuleEntitlementsSelect<true>;
+    'organisation-plans': OrganisationPlansSelect<false> | OrganisationPlansSelect<true>;
+    'usage-daily': UsageDailySelect<false> | UsageDailySelect<true>;
+    'usage-rollups': UsageRollupsSelect<false> | UsageRollupsSelect<true>;
     'activity-events': ActivityEventsSelect<false> | ActivityEventsSelect<true>;
     'oauth-clients': OauthClientsSelect<false> | OauthClientsSelect<true>;
     'oauth-authorization-codes': OauthAuthorizationCodesSelect<false> | OauthAuthorizationCodesSelect<true>;
@@ -234,6 +240,78 @@ export interface ModuleEntitlement {
   createdAt: string;
 }
 /**
+ * Which plan each organisation is on. No row means the Free plan. Superadmin-only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "organisation-plans".
+ */
+export interface OrganisationPlan {
+  id: number;
+  organisation: number | Organisation;
+  plan: 'free' | 'pro' | 'agency';
+  /**
+   * A suspended organisation is treated as being on the Free plan.
+   */
+  status: 'active' | 'suspended';
+  /**
+   * When the paid period ends; afterwards the organisation falls back to Free. Leave empty for no end.
+   */
+  currentPeriodEnd?: string | null;
+  /**
+   * Replaces the plan's site limit, e.g. 50 for an Agency with an extra 25-site pack.
+   */
+  maxSitesOverride?: number | null;
+  /**
+   * Replaces the plan's daily tool call limit.
+   */
+  dailyToolCallsOverride?: number | null;
+  source?: ('manual' | 'billing') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Tool calls per organisation per UTC day. Read-only; pruned after the retention window.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-daily".
+ */
+export interface UsageDaily {
+  id: number;
+  organisation: number | Organisation;
+  /**
+   * UTC date, YYYY-MM-DD.
+   */
+  day: string;
+  toolCalls: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Daily tool-call totals per organisation, module and tool. Read-only; kept indefinitely.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-rollups".
+ */
+export interface UsageRollup {
+  id: number;
+  organisation: number | Organisation;
+  /**
+   * UTC date, YYYY-MM-DD.
+   */
+  day: string;
+  module: string;
+  tool: string;
+  kind: string;
+  calls: number;
+  failures: number;
+  /**
+   * Calls refused by the plan's daily limit (also counted in failures).
+   */
+  planLimited: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * What AI apps did through Epexta's MCP tools. Read-only; pruned after the retention window.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -252,7 +330,7 @@ export interface ActivityEvent {
   siteLabel?: string | null;
   source: 'api-key' | 'oauth';
   client?: string | null;
-  errorCode?: ('not_enabled' | 'tool_error') | null;
+  errorCode?: ('not_enabled' | 'plan_limit' | 'tool_error') | null;
   durationMs?: number | null;
   updatedAt: string;
   createdAt: string;
@@ -772,6 +850,18 @@ export interface PayloadLockedDocument {
         value: number | ModuleEntitlement;
       } | null)
     | ({
+        relationTo: 'organisation-plans';
+        value: number | OrganisationPlan;
+      } | null)
+    | ({
+        relationTo: 'usage-daily';
+        value: number | UsageDaily;
+      } | null)
+    | ({
+        relationTo: 'usage-rollups';
+        value: number | UsageRollup;
+      } | null)
+    | ({
         relationTo: 'activity-events';
         value: number | ActivityEvent;
       } | null)
@@ -945,6 +1035,48 @@ export interface ModuleEntitlementsSelect<T extends boolean = true> {
   moduleSlug?: T;
   enabled?: T;
   source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "organisation-plans_select".
+ */
+export interface OrganisationPlansSelect<T extends boolean = true> {
+  organisation?: T;
+  plan?: T;
+  status?: T;
+  currentPeriodEnd?: T;
+  maxSitesOverride?: T;
+  dailyToolCallsOverride?: T;
+  source?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-daily_select".
+ */
+export interface UsageDailySelect<T extends boolean = true> {
+  organisation?: T;
+  day?: T;
+  toolCalls?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "usage-rollups_select".
+ */
+export interface UsageRollupsSelect<T extends boolean = true> {
+  organisation?: T;
+  day?: T;
+  module?: T;
+  tool?: T;
+  kind?: T;
+  calls?: T;
+  failures?: T;
+  planLimited?: T;
   updatedAt?: T;
   createdAt?: T;
 }

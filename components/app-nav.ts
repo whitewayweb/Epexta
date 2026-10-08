@@ -1,4 +1,4 @@
-import { ChartColumn, LayoutDashboard, KeyRound, type LucideIcon, Plug, Search, Users } from "lucide-react";
+import { ChartColumn, Gauge, LayoutDashboard, KeyRound, type LucideIcon, Plug, Search, Users } from "lucide-react";
 import type { ComponentType } from "react";
 import { WordPressIcon } from "@/components/site/wordpress-icon";
 import { MODULES, type ModuleSlug } from "@/lib/modules";
@@ -41,6 +41,7 @@ const SETTINGS: NavGroup = {
     { href: "/settings/members", label: "Members", icon: Users },
     { href: "/settings/connected-apps", label: "Connected apps", icon: Plug },
     { href: "/settings/api-key", label: "API keys", icon: KeyRound },
+    { href: "/settings/plan", label: "Plan & usage", icon: Gauge },
   ],
 };
 

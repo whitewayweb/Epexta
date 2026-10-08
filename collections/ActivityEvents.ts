@@ -71,6 +71,7 @@ export const ActivityEvents: CollectionConfig = {
       type: "select",
       options: [
         { label: "Module not enabled", value: "not_enabled" },
+        { label: "Plan limit reached", value: "plan_limit" },
         { label: "Tool error", value: "tool_error" },
       ],
     },

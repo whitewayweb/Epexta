@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { rollUpActivity } from "./usage-rollup";
 import { ACTIVITY_RETENTION_DAYS, countActivity, listActivity, purgeExpiredActivity, recordActivity } from "./activity";
 import { getPayloadClient } from "./payload";
 
@@ -174,6 +175,8 @@ describe("activity log", () => {
     });
     await recordActivity({ ...base(), organisationId, userId: adminId, summary: "fresh" });
 
+    // The purge only deletes what the usage rollup has already folded in.
+    await rollUpActivity();
     expect(await purgeExpiredActivity()).toBeGreaterThanOrEqual(1);
 
     const gone = await payload.findByID({ collection: "activity-events", id: old.id, overrideAccess: true }).catch(() => null);

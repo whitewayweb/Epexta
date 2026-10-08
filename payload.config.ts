@@ -11,7 +11,10 @@ import { OAuthAuthorizationCodes } from "./collections/OAuthAuthorizationCodes";
 import { OAuthClients } from "./collections/OAuthClients";
 import { OAuthGrants } from "./collections/OAuthGrants";
 import { OAuthTokens } from "./collections/OAuthTokens";
+import { OrganisationPlans } from "./collections/OrganisationPlans";
 import { Organisations } from "./collections/Organisations";
+import { UsageDaily } from "./collections/UsageDaily";
+import { UsageRollups } from "./collections/UsageRollups";
 import { Users } from "./collections/Users";
 import { GoogleAnalyticsMappings } from "./modules/google-analytics/collection";
 import {
@@ -62,6 +65,9 @@ export default buildConfig({
     Organisations,
     ApiKeys,
     ModuleEntitlements,
+    OrganisationPlans,
+    UsageDaily,
+    UsageRollups,
     ActivityEvents,
     OAuthClients,
     OAuthAuthorizationCodes,

@@ -1,4 +1,6 @@
+import { getOrganisationPlan } from "@/lib/organisation-plan";
 import { getPayloadClient } from "@/lib/payload";
+import { PlanLimitError } from "@/lib/plans";
 import { relationshipId } from "@/lib/relationship";
 import { MODULES } from "@/lib/modules";
 import { referencingCapabilitiesForWordPressConnection } from "@/modules/google-connections/registry";
@@ -122,17 +124,60 @@ export async function getOwnedWordPressConnection(
   return toConnection(doc);
 }
 
+/**
+ * The distinct sites connected in this organisation, by any member - what the plan's site
+ * limit counts. Two members each connecting the same site is still one site.
+ */
+export async function listWordPressSiteUrls(organisationId: string): Promise<Set<string>> {
+  const payload = await getPayloadClient();
+  const result = await payload.find({
+    collection: "wordpress-connections",
+    where: { organisation: { equals: Number(organisationId) } },
+    select: { siteUrl: true },
+    depth: 0,
+    limit: 0,
+    pagination: false,
+    overrideAccess: true,
+  });
+  return new Set(result.docs.map((doc) => doc.siteUrl.toLowerCase()));
+}
+
+/** Whether this organisation can connect another new site, and the plan figures to explain why not. */
+export async function getSiteLimitState(organisationId: string) {
+  const [plan, sites] = await Promise.all([getOrganisationPlan(organisationId), listWordPressSiteUrls(organisationId)]);
+  return { plan, used: sites.size, reached: sites.size >= plan.maxSites };
+}
+
+/**
+ * Connects a site, within the organisation's plan. Throws PlanLimitError when this would be
+ * a new site beyond the plan's site limit; adding a colleague's credentials for a site the
+ * organisation already has is always allowed. The count is checked before the insert and
+ * again after it: two concurrent adds can both pass the first check, so the second check
+ * removes whichever insert pushed the organisation over the limit instead of letting it
+ * stand. Existing sites are never removed when a plan shrinks - the limit only stops new ones.
+ */
 export async function createWordPressConnection(
   organisationId: string,
   userId: string,
   data: WordPressConnectionInput
 ): Promise<void> {
+  const plan = await getOrganisationPlan(organisationId);
+  const sites = await listWordPressSiteUrls(organisationId);
+  if (sites.size >= plan.maxSites && !sites.has(data.siteUrl.toLowerCase())) {
+    throw new PlanLimitError("sites", plan);
+  }
+
   const payload = await getPayloadClient();
-  await payload.create({
+  const created = await payload.create({
     collection: "wordpress-connections",
     data: { ...data, organisation: Number(organisationId), user: Number(userId) },
     overrideAccess: true,
   });
+
+  if ((await listWordPressSiteUrls(organisationId)).size > plan.maxSites) {
+    await payload.delete({ collection: "wordpress-connections", id: created.id, overrideAccess: true });
+    throw new PlanLimitError("sites", plan);
+  }
 }
 
 export async function updateWordPressConnection(

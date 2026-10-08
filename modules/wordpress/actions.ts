@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isModuleEnabled, requireModuleEnabledForUser } from "@/lib/entitlements";
 import { getPayloadClient } from "@/lib/payload";
+import { PlanLimitError } from "@/lib/plans";
 import { getCurrentUser } from "@/lib/session";
 import {
   addOrganisationMember,
@@ -126,7 +127,8 @@ export async function addConnectionAction(
 
   try {
     await createWordPressConnection(organisation.organisationId, user.id, parsed.data);
-  } catch {
+  } catch (error) {
+    if (error instanceof PlanLimitError) return { error: error.message, success: false };
     return { error: "Could not save the connection. Check the site URL and try again.", success: false };
   }
 

@@ -15,6 +15,8 @@ import * as migration_20260925_221212_oauth_grant_revoked_by from './20260925_22
 import * as migration_20260930_162225_add_user_full_name from './20260930_162225_add_user_full_name';
 import * as migration_20261001_071414_wordpress_connection_user from './20261001_071414_wordpress_connection_user';
 import * as migration_20261003_080308_add_activity_events from './20261003_080308_add_activity_events';
+import * as migration_20261008_083637_plan_limits from './20261008_083637_plan_limits';
+import * as migration_20261008_092107_usage_rollups from './20261008_092107_usage_rollups';
 
 export const migrations = [
   {
@@ -100,6 +102,16 @@ export const migrations = [
   {
     up: migration_20261003_080308_add_activity_events.up,
     down: migration_20261003_080308_add_activity_events.down,
-    name: '20261003_080308_add_activity_events'
+    name: '20261003_080308_add_activity_events',
+  },
+  {
+    up: migration_20261008_083637_plan_limits.up,
+    down: migration_20261008_083637_plan_limits.down,
+    name: '20261008_083637_plan_limits',
+  },
+  {
+    up: migration_20261008_092107_usage_rollups.up,
+    down: migration_20261008_092107_usage_rollups.down,
+    name: '20261008_092107_usage_rollups',
   },
 ];

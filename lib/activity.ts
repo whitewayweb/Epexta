@@ -3,6 +3,7 @@ import { getPayloadClient } from "./payload";
 import { executeSql, sql } from "./db-sql";
 import type { OrganisationRole } from "./members";
 import type { ModuleSlug } from "./modules";
+import { rolledUpThrough } from "./usage-rollup";
 import type { ActivityEvent } from "../payload-types";
 
 // The activity log (ACTIVITY_LOG_PLAN.md): what AI apps did through MCP tools, per
@@ -28,7 +29,7 @@ export interface ActivityInput {
   source: "api-key" | "oauth";
   /** The OAuth client the call came in through; resolved to its display name when stored. */
   oauthClientId?: string | null;
-  errorCode?: "not_enabled" | "tool_error" | null;
+  errorCode?: "not_enabled" | "plan_limit" | "tool_error" | null;
   durationMs?: number;
 }
 
@@ -192,10 +193,17 @@ export async function countActivity(
 
 /**
  * Deletes events past the retention window (a raw bulk delete: the local API would load
- * every row it deletes). Returns how many were removed. Run daily by /api/cron/activity-cleanup.
+ * every row it deletes), but never an event the usage rollup hasn't folded in yet
+ * (lib/usage-rollup.ts) - the raw events are the only copy until then, so a failed or missed
+ * rollup delays the purge instead of losing history. Returns how many were removed. Run daily
+ * by /api/cron/activity-cleanup, after the rollup.
  */
 export async function purgeExpiredActivity(now: Date = new Date()): Promise<number> {
-  const cutoff = new Date(now.getTime() - ACTIVITY_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const rolledUp = await rolledUpThrough();
+  if (!rolledUp) return 0;
+
+  const retentionCutoff = now.getTime() - ACTIVITY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(Math.min(retentionCutoff, rolledUp.getTime())).toISOString();
   const result = await executeSql(sql`DELETE FROM "activity_events" WHERE "created_at" < ${cutoff}::timestamptz`);
   return result.rowCount;
 }

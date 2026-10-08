@@ -6,6 +6,7 @@ import { ModuleNotEnabledError } from "./entitlements";
 import { runLoggedTool } from "./mcp-activity";
 import { READ_ONLY_TOOL, UPDATE_TOOL } from "./mcp-server-identity";
 import { getPayloadClient } from "./payload";
+import { getToolCallsToday } from "./usage";
 
 describe("runLoggedTool", () => {
   const suffix = randomUUID();
@@ -107,6 +108,38 @@ describe("runLoggedTool", () => {
       const events = await listActivity(organisationId, viewer(), { limit: 10, outcome: "failure" });
       expect(events.some((e) => e.tool === "create_post")).toBe(true);
     });
+  });
+
+  it("refuses the call once the plan's daily allowance is used up, without running the tool", async () => {
+    const payload = await getPayloadClient();
+    // Earlier tests in this file already used some of today's allowance; leave room for two more.
+    const allowance = (await getToolCallsToday(organisationId)) + 2;
+    const plan = await payload.create({
+      collection: "organisation-plans",
+      data: { organisation: Number(organisationId), plan: "free", status: "active", dailyToolCallsOverride: allowance },
+      overrideAccess: true,
+    });
+    const config = { title: "List WordPress Posts", annotations: READ_ONLY_TOOL };
+    const handler = vi.fn(() => ok);
+
+    try {
+      expect(await run({ name: "list_posts", config }, ctxFor(caller()), {}, handler)).toBe(ok);
+      expect(await run({ name: "list_posts", config }, ctxFor(caller()), {}, handler)).toBe(ok);
+      const refused = (await run({ name: "list_posts", config }, ctxFor(caller()), {}, handler)) as {
+        isError: boolean;
+        content: { text: string }[];
+      };
+
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0].text).toContain("daily tool calls");
+      await vi.waitFor(async () => {
+        const [item] = await listActivity(organisationId, viewer(), { limit: 1, outcome: "failure" });
+        expect(item.summary).toContain("daily tool calls");
+      });
+    } finally {
+      await payload.delete({ collection: "organisation-plans", id: plan.id, overrideAccess: true });
+    }
   });
 
   it("skips elicitation results and callers without an organisation", async () => {
