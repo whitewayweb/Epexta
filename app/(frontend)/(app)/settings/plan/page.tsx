@@ -8,9 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { getUserOrganisation } from "@/lib/organisation";
 import { requireUser } from "@/lib/session";
-import { getToolCallsToday } from "@/lib/usage";
-import { parseUsageRange, type UsageRange } from "@/lib/usage-ranges";
-import { getUsageHistory } from "@/lib/usage-rollup";
+import { getToolCallsToday } from "@/lib/plans/usage";
+import { parseUsageRange, type UsageRange } from "@/lib/plans/usage-ranges";
+import { getUsageHistory } from "@/lib/plans/usage-rollup";
 import { getSiteLimitState } from "@/modules/wordpress/organisation";
 
 const PLAN_PATH = "/settings/plan";

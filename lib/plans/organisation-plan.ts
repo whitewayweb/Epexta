@@ -1,6 +1,6 @@
 import { cache } from "react";
-import { getPayloadClient } from "./payload";
-import { resolvePlan, type EffectivePlan } from "./plans";
+import { getPayloadClient } from "../payload";
+import { resolvePlan, type EffectivePlan } from "./definitions";
 
 /**
  * The plan this organisation is on right now (lib/plans.ts decides what that means for a

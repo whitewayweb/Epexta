@@ -1,12 +1,12 @@
 import type { ServerContext, ToolAnnotations } from "@modelcontextprotocol/server";
-import { recordActivity, type ActivityKind } from "./activity";
-import { runAfterResponse } from "./after-response";
-import { ModuleNotEnabledError } from "./entitlements";
-import type { McpCaller } from "./mcp-auth";
-import type { ModuleSlug } from "./modules";
-import { getOrganisationPlan } from "./organisation-plan";
-import { PlanLimitError } from "./plans";
-import { consumeToolCall } from "./usage";
+import { recordActivity, type ActivityKind } from "../activity";
+import { runAfterResponse } from "../after-response";
+import { ModuleNotEnabledError } from "../entitlements";
+import type { McpCaller } from "./auth";
+import type { ModuleSlug } from "../modules";
+import { getOrganisationPlan } from "../plans/organisation-plan";
+import { PlanLimitError } from "../plans/definitions";
+import { consumeToolCall } from "../plans/usage";
 
 /** What a module can tell the log about one call, from the tool's arguments. */
 export interface ActivityDescription {

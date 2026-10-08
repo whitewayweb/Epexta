@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { describe, expect, it } from "vitest";
 import { getPayloadClient } from "../../lib/payload";
-import { PlanLimitError } from "../../lib/plans";
+import { PlanLimitError } from "../../lib/plans/definitions";
 import { createOrReplaceMapping as createOrReplaceSearchConsoleMapping } from "../google-search-console/mappings";
 import { createOrReplaceMapping as createOrReplaceAnalyticsMapping } from "../google-analytics/mappings";
 import {

@@ -1,6 +1,6 @@
 import type { CollectionConfig } from "payload";
 import { isSuperadmin } from "../lib/members";
-import { PLAN_STATUSES, PLANS } from "../lib/plans";
+import { PLAN_STATUSES, PLANS } from "../lib/plans/definitions";
 
 // Platform-wide, like ModuleEntitlements: which plan an organisation is on. An organisation
 // with no row is on the default plan (lib/plans.ts), so this holds only organisations that

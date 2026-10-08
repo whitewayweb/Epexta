@@ -1,4 +1,4 @@
-import { purgeExpiredUsage } from "@/lib/usage";
+import { purgeExpiredUsage } from "@/lib/plans/usage";
 
 // Daily tool-call meter retention, scheduled in vercel.json. Same protection as the other
 // cron jobs: Vercel Cron calls this with `Authorization: Bearer $CRON_SECRET`; anything else

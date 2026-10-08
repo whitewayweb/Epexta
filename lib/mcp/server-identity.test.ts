@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MODULES } from "@/lib/modules";
-import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
+import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp/server-identity";
 
 describe("mcpServerIdentity", () => {
   it("names a single-module route after Epexta and that module", () => {

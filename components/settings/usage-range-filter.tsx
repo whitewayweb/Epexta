@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { USAGE_RANGES, type UsageRange } from "@/lib/usage-ranges";
+import { USAGE_RANGES, type UsageRange } from "@/lib/plans/usage-ranges";
 
 const LABELS: Record<UsageRange, string> = { "7d": "7d", "30d": "30d", "90d": "90d", all: "All" };
 

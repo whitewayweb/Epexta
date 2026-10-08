@@ -1,9 +1,9 @@
 import { randomBytes } from "crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { createApiKey } from "./api-keys";
-import { authenticateMcpBearer } from "./mcp-auth";
-import { createOAuthFixtures, PKCE, REDIRECT_URI } from "./oauth/test-fixtures";
-import { exchangeAuthorizationCode } from "./oauth/tokens";
+import { createApiKey } from "../api-keys";
+import { authenticateMcpBearer } from "./auth";
+import { createOAuthFixtures, PKCE, REDIRECT_URI } from "../oauth/test-fixtures";
+import { exchangeAuthorizationCode } from "../oauth/tokens";
 
 const fixtures = createOAuthFixtures();
 afterAll(() => fixtures.cleanup());

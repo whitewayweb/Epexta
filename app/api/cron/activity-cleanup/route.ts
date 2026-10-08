@@ -1,5 +1,5 @@
 import { purgeExpiredActivity } from "@/lib/activity";
-import { rollUpActivity } from "@/lib/usage-rollup";
+import { rollUpActivity } from "@/lib/plans/usage-rollup";
 
 // Daily activity-log housekeeping, scheduled in vercel.json: first fold finished days into the
 // long-term usage rollup, then delete raw events past retention (never any the rollup hasn't

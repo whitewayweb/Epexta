@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { rollUpActivity } from "./usage-rollup";
+import { rollUpActivity } from "./plans/usage-rollup";
 import { ACTIVITY_RETENTION_DAYS, countActivity, listActivity, purgeExpiredActivity, recordActivity } from "./activity";
 import { getPayloadClient } from "./payload";
 

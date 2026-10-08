@@ -10,11 +10,11 @@ See [plan.md](plan.md) for the phased roadmap.
   `session.ts` (cookie/auth), `auth-actions.ts` (login/signup/logout Server Actions —
   account creation is a platform concern, not a module one), `members.ts` +
   `organisation.ts` (generic organisation/membership model), `crypto.ts` (AES-256-GCM
-  for secrets at rest), `modules.ts` (module registry), `activity.ts` + `mcp-activity.ts` (the activity log of MCP tool
+  for secrets at rest), `modules.ts` (module registry), `activity.ts` + `mcp/logged-tool.ts` (the activity log of MCP tool
   calls - see `ACTIVITY_LOG_PLAN.md`), `entitlements.ts` (per-organisation
-  module on/off state — see `MODULE_ENTITLEMENTS_PLAN.md`), `plans.ts` +
-  `organisation-plan.ts` + `usage.ts` + `usage-rollup.ts` (plans, site limit, the daily tool-call meter and its long-term rollup — see
-  `PRICING_PLAN.md`; modules ask for limits, never for plan names), `mcp-auth.ts` (the one bearer
+  module on/off state — see `MODULE_ENTITLEMENTS_PLAN.md`), `plans/` (`definitions`,
+  `organisation-plan`, `usage`, `usage-rollup`: plans, site limit, the daily tool-call meter and its long-term rollup — see
+  `PRICING_PLAN.md`; modules ask for limits, never for plan names), `mcp/auth.ts` (the one bearer
   authenticator every MCP route uses — API keys and OAuth access tokens), `oauth/`
   (Epexta's OAuth authorization server for Claude/ChatGPT connectors — see
   `OAUTH_CONNECTOR_PLAN.md`; code outside `lib/oauth/` goes through `oauthProvider`
@@ -49,11 +49,11 @@ See [plan.md](plan.md) for the phased roadmap.
      organisation-creation fallback checks entitlement *after* resolving/creating the
      organisation, not before).
   3. `app/api/<name>/mcp/route.ts` is wrapped in `withEpextaMcpAuth(mcpPath, ...)`
-     (`lib/mcp-auth.ts`) — never mcp-handler's `withMcpAuth` directly, since only the
+     (`lib/mcp/auth.ts`) — never mcp-handler's `withMcpAuth` directly, since only the
      wrapper points the route's 401 at its own OAuth metadata and checks OAuth
      tokens' audience. It computes `moduleEnabled` once per request in the `buildExtra`
      it passes there, and registers every tool through a `registerGatedTool` wrapper that calls
-     `runLoggedTool` (`lib/mcp-activity.ts`: entitlement check, the plan's daily tool-call allowance, and the activity log; see the
+     `runLoggedTool` (`lib/mcp/logged-tool.ts`: entitlement check, the plan's daily tool-call allowance, and the activity log; see the
      WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
      that reads `extra` directly instead of going through a per-tool helper can
      otherwise skip a per-handler convention entirely. Its `createMcpHandler` options
@@ -147,6 +147,14 @@ optional. For every feature plan, implementation, and review:
 - Before treating a change as complete, remove dead code, stale comments, unused imports,
   contradictory documentation, and superseded code paths that the change itself made
   obsolete — don't leave the old way sitting next to the new way "just in case."
+- Keep the project structure easy for someone new to follow. As the codebase grows, improve
+  the layout as part of the change that grows it: when a folder (`lib/`, `components/`,
+  a module) collects several files for one concept, give them a subfolder named for it
+  (`lib/oauth/`, `lib/plans/`, `lib/mcp/`) rather than letting a flat list sprawl, and
+  name files for what they do, not by a repeated prefix. A reader should be able to tell
+  what a folder is for from its name. Do the move as its own commit (pure moves and import
+  updates, no behaviour change) so it reviews cleanly, and update the file map above and
+  any plan docs in the same commit.
 - Verify the result reads as consistent with the rest of the module and the platform
   conventions above, then run the Dev workflow's required checks.
 
@@ -282,7 +290,7 @@ implement from memory or from a summary of a summary:
 - **Authorization** — https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
   and its `authorization-server-discovery`, `client-registration`, and
   `security-considerations` sub-pages (everything under `lib/oauth/` and
-  `lib/mcp-auth.ts`), plus Claude's connector auth guide
+  `lib/mcp/auth.ts`), plus Claude's connector auth guide
   (https://claude.com/docs/connectors/building/authentication) — Claude's and ChatGPT's
   client behaviour differs from the generic spec in places
 - **Elicitation** — https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation

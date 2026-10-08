@@ -1,6 +1,6 @@
-import { getOrganisationPlan } from "@/lib/organisation-plan";
+import { getOrganisationPlan } from "@/lib/plans/organisation-plan";
 import { getPayloadClient } from "@/lib/payload";
-import { PlanLimitError } from "@/lib/plans";
+import { PlanLimitError } from "@/lib/plans/definitions";
 import { relationshipId } from "@/lib/relationship";
 import { MODULES } from "@/lib/modules";
 import { referencingCapabilitiesForWordPressConnection } from "@/modules/google-connections/registry";

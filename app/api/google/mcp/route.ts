@@ -3,9 +3,9 @@ import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprot
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
-import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
-import { runLoggedTool } from "@/lib/mcp-activity";
-import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
+import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp/auth";
+import { runLoggedTool } from "@/lib/mcp/logged-tool";
+import { mcpServerIdentity, READ_ONLY_TOOL, withToolIdentity } from "@/lib/mcp/server-identity";
 import { listWordPressConnections } from "@/modules/wordpress/organisation";
 import { listMappingsForOrganisation as listAnalyticsMappingsForOrganisation } from "@/modules/google-analytics/mappings";
 import {

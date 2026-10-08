@@ -3,9 +3,9 @@ import { acceptedContent, inputRequired, inputResponse } from "@modelcontextprot
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import { assertModuleEnabled, isModuleEnabled, ModuleNotEnabledError } from "@/lib/entitlements";
-import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp-auth";
-import { runLoggedTool, type DescribeCall } from "@/lib/mcp-activity";
-import { CREATE_TOOL, mcpServerIdentity, READ_ONLY_TOOL, UPDATE_TOOL, withToolIdentity } from "@/lib/mcp-server-identity";
+import { withEpextaMcpAuth, type McpCaller } from "@/lib/mcp/auth";
+import { runLoggedTool, type DescribeCall } from "@/lib/mcp/logged-tool";
+import { CREATE_TOOL, mcpServerIdentity, READ_ONLY_TOOL, UPDATE_TOOL, withToolIdentity } from "@/lib/mcp/server-identity";
 import {
   createWordPressClient,
   WordPressApiError,

@@ -1,9 +1,9 @@
 import type { AuthInfo } from "@modelcontextprotocol/server";
 import { withMcpAuth } from "mcp-handler";
-import { getAppUrl } from "./app-url";
-import { getUserByApiKey } from "./api-keys";
-import { oauthProvider, type McpPath } from "./oauth/provider";
-import { getUserOrganisation } from "./organisation";
+import { getAppUrl } from "../app-url";
+import { getUserByApiKey } from "../api-keys";
+import { oauthProvider, type McpPath } from "../oauth/provider";
+import { getUserOrganisation } from "../organisation";
 
 // The one bearer-token authenticator every module's MCP route uses - see
 // OAUTH_CONNECTOR_PLAN.md "MCP route changes: one shared authenticator". Routes never call

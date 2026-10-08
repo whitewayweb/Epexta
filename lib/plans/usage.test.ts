@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getOrganisationPlan } from "./organisation-plan";
-import { getPayloadClient } from "./payload";
+import { getPayloadClient } from "../payload";
 import { consumeToolCall, getToolCallsToday, purgeExpiredUsage, usageDay, USAGE_RETENTION_DAYS } from "./usage";
 
 describe("tool call meter", () => {

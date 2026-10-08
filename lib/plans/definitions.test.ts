@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLANS, PlanLimitError, resolvePlan } from "./plans";
+import { PLANS, PlanLimitError, resolvePlan } from "./definitions";
 
 const now = new Date("2026-10-08T12:00:00Z");
 

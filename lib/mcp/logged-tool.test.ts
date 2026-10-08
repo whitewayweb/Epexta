@@ -1,12 +1,12 @@
 import type { ServerContext } from "@modelcontextprotocol/server";
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { listActivity } from "./activity";
-import { ModuleNotEnabledError } from "./entitlements";
-import { runLoggedTool } from "./mcp-activity";
-import { READ_ONLY_TOOL, UPDATE_TOOL } from "./mcp-server-identity";
-import { getPayloadClient } from "./payload";
-import { getToolCallsToday } from "./usage";
+import { listActivity } from "../activity";
+import { ModuleNotEnabledError } from "../entitlements";
+import { runLoggedTool } from "./logged-tool";
+import { READ_ONLY_TOOL, UPDATE_TOOL } from "./server-identity";
+import { getPayloadClient } from "../payload";
+import { getToolCallsToday } from "../plans/usage";
 
 describe("runLoggedTool", () => {
   const suffix = randomUUID();

@@ -1,5 +1,5 @@
-import { executeSql, sql } from "./db-sql";
-import { getPayloadClient } from "./payload";
+import { executeSql, sql } from "../db-sql";
+import { getPayloadClient } from "../payload";
 
 // The daily tool-call meter (PRICING_PLAN.md): one `usage_daily` row per organisation per UTC
 // day, counting the MCP tool calls that ran. Read by the plan page; written by

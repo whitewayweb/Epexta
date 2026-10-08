@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ACTIVITY_RETENTION_DAYS, purgeExpiredActivity } from "./activity";
-import { getPayloadClient } from "./payload";
+import { ACTIVITY_RETENTION_DAYS, purgeExpiredActivity } from "../activity";
+import { getPayloadClient } from "../payload";
 import { getUsageHistory, rolledUpThrough, rollUpActivity } from "./usage-rollup";
 import { DEFAULT_USAGE_RANGE, parseUsageRange } from "./usage-ranges";
 

@@ -3,7 +3,7 @@ import { getPayloadClient } from "./payload";
 import { executeSql, sql } from "./db-sql";
 import type { OrganisationRole } from "./members";
 import type { ModuleSlug } from "./modules";
-import { rolledUpThrough } from "./usage-rollup";
+import { rolledUpThrough } from "./plans/usage-rollup";
 import type { ActivityEvent } from "../payload-types";
 
 // The activity log (ACTIVITY_LOG_PLAN.md): what AI apps did through MCP tools, per
