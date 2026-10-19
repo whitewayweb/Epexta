@@ -126,7 +126,8 @@ export async function getOwnedWordPressConnection(
 
 /**
  * The distinct sites connected in this organisation, by any member - what the plan's site
- * limit counts. Two members each connecting the same site is still one site.
+ * limit counts. Two members each connecting the same site is still one site. Sites come back
+ * in the order they were first connected, which is what makes "the first N sites" well defined.
  */
 export async function listWordPressSiteUrls(organisationId: string): Promise<Set<string>> {
   const payload = await getPayloadClient();
@@ -134,6 +135,7 @@ export async function listWordPressSiteUrls(organisationId: string): Promise<Set
     collection: "wordpress-connections",
     where: { organisation: { equals: Number(organisationId) } },
     select: { siteUrl: true },
+    sort: "id",
     depth: 0,
     limit: 0,
     pagination: false,
@@ -152,9 +154,11 @@ export async function getSiteLimitState(organisationId: string) {
  * Connects a site, within the organisation's plan. Throws PlanLimitError when this would be
  * a new site beyond the plan's site limit; adding a colleague's credentials for a site the
  * organisation already has is always allowed. The count is checked before the insert and
- * again after it: two concurrent adds can both pass the first check, so the second check
- * removes whichever insert pushed the organisation over the limit instead of letting it
- * stand. Existing sites are never removed when a plan shrinks - the limit only stops new ones.
+ * again after it: concurrent adds can all pass the first check, so the second check keeps the
+ * first `maxSites` sites in connection order and removes a new site that falls outside them.
+ * Every racer sees the same order, so exactly the earliest ones survive (none removes another's
+ * winner, and none all remove themselves). Existing sites are never removed when a plan
+ * shrinks - the limit only stops new ones.
  */
 export async function createWordPressConnection(
   organisationId: string,
@@ -163,7 +167,8 @@ export async function createWordPressConnection(
 ): Promise<void> {
   const plan = await getOrganisationPlan(organisationId);
   const sites = await listWordPressSiteUrls(organisationId);
-  const isNewSite = !sites.has(data.siteUrl.toLowerCase());
+  const siteKey = data.siteUrl.toLowerCase();
+  const isNewSite = !sites.has(siteKey);
   if (isNewSite && sites.size >= plan.maxSites) throw new PlanLimitError("sites", plan);
 
   const payload = await getPayloadClient();
@@ -173,7 +178,7 @@ export async function createWordPressConnection(
     overrideAccess: true,
   });
 
-  if (isNewSite && (await listWordPressSiteUrls(organisationId)).size > plan.maxSites) {
+  if (isNewSite && [...(await listWordPressSiteUrls(organisationId))].indexOf(siteKey) >= plan.maxSites) {
     await payload.delete({ collection: "wordpress-connections", id: created.id, overrideAccess: true });
     throw new PlanLimitError("sites", plan);
   }

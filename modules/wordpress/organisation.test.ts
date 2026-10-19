@@ -342,12 +342,14 @@ describe("createWordPressConnection and the plan's site limit", () => {
     await cleanup();
   });
 
-  it("never ends up over the limit when adds race, and keeps what a downgrade left in place", async () => {
+  it("keeps exactly the earliest site when adds race, and keeps what a downgrade left in place", async () => {
     const { payload, organisationId, userIds, cleanup } = await makeOrganisation();
     const suffix = randomUUID();
 
     const results = await Promise.allSettled([1, 2, 3, 4].map((n) => createWordPressConnection(organisationId, userIds[0], site(n, suffix))));
-    expect((await listWordPressSiteUrls(organisationId)).size).toBeLessThanOrEqual(1);
+    // Exactly one survives - racers must not all roll themselves back.
+    expect((await listWordPressSiteUrls(organisationId)).size).toBe(1);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     for (const result of results) {
       if (result.status === "rejected") expect(result.reason).toBeInstanceOf(PlanLimitError);
     }
