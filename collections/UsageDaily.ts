@@ -2,7 +2,7 @@ import type { CollectionConfig } from "payload";
 import { supportReadableAccess } from "../lib/collection-access";
 
 // How many MCP tool calls an organisation has made on one UTC day - the meter behind each
-// plan's daily allowance (lib/usage.ts). One row per organisation per day, incremented by
+// plan's daily allowance (lib/plans/usage.ts). One row per organisation per day, incremented by
 // a single atomic SQL statement, so it stays exact under concurrent calls and cheap to read
 // however many events the activity log holds. Holds counts only. Superadmins can browse it
 // read-only in /admin for support; old rows are pruned by /api/cron/usage-cleanup.

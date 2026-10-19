@@ -57,12 +57,12 @@ See [plan.md](plan.md) for the phased roadmap.
      WordPress route for the pattern) — never a raw `server.registerTool` call, since a tool
      that reads `extra` directly instead of going through a per-tool helper can
      otherwise skip a per-handler convention entirely. Its `createMcpHandler` options
-     are `mcpServerIdentity(mcpPath, [...instructions])` (`lib/mcp-server-identity.ts`),
+     are `mcpServerIdentity(mcpPath, [...instructions])` (`lib/mcp/server-identity.ts`),
      never a bare `{ instructions }`. Clients like Claude name connector tools by an
      opaque id (`mcp__<uuid>__list_sites`), so the Epexta name in `serverInfo` and at
      the start of the instructions is the only thing linking the tools to the product.
      Every tool config must declare `annotations` (`READ_ONLY_TOOL`/`CREATE_TOOL`/`UPDATE_TOOL`
-     in `lib/mcp-server-identity.ts`; `withToolIdentity`'s type enforces it) - unannotated,
+     in `lib/mcp/server-identity.ts`; `withToolIdentity`'s type enforces it) - unannotated,
      clients like ChatGPT treat a pure lookup as a destructive public write.
      `registerGatedTool` passes each config through `withToolIdentity(moduleSlug, ...)`
      too, prefixing the description with "Epexta <Module>:" - Claude's tool search

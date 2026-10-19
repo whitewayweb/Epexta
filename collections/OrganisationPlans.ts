@@ -3,8 +3,8 @@ import { isSuperadmin } from "../lib/members";
 import { PLAN_STATUSES, PLANS } from "../lib/plans/definitions";
 
 // Platform-wide, like ModuleEntitlements: which plan an organisation is on. An organisation
-// with no row is on the default plan (lib/plans.ts), so this holds only organisations that
-// were moved off it. Only a superadmin (or, later, billing) writes it; lib/organisation-plan.ts
+// with no row is on the default plan (lib/plans/definitions.ts), so this holds only organisations that
+// were moved off it. Only a superadmin (or, later, billing) writes it; lib/plans/organisation-plan.ts
 // is how everything else reads it. Versions keep a history of every plan change.
 export const OrganisationPlans: CollectionConfig = {
   slug: "organisation-plans",

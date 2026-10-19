@@ -104,7 +104,7 @@ enforcement from day one, both modules follow the WordPress pattern
 - The combined `app/api/google/mcp/route.ts` (see "One Google Site Hub MCP
   endpoint, not one per module") computes each module's `moduleEnabled`
   independently, once per request, in its `buildExtra` (passed to
-  `withEpextaMcpAuth`, `lib/mcp-auth.ts`), and registers every tool through
+  `withEpextaMcpAuth`, `lib/mcp/auth.ts`), and registers every tool through
   `registerGatedTool` — never a raw `server.registerTool` call, and never a
   tool that reads `extra` directly instead of going through the per-tool
   helper.

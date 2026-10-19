@@ -93,7 +93,7 @@ function errorResult(error: unknown) {
   };
 }
 
-// Authentication (lib/mcp-auth.ts) only proves who the caller is and which organisation
+// Authentication (lib/mcp/auth.ts) only proves who the caller is and which organisation
 // they act for. Whether that organisation has the module enabled or any connected
 // WordPress sites yet is a separate, non-fatal condition - surfaced to the LLM as a clear
 // tool-call error (see resolveConnection) rather than a generic 401, so it can tell the
@@ -105,7 +105,7 @@ async function buildWordPressExtra(caller: McpCaller) {
   return { connections, moduleEnabled };
 }
 
-// What the activity log (lib/mcp-activity.ts) shows for a call: the post's title (or its id),
+// What the activity log (lib/mcp/logged-tool.ts) shows for a call: the post's title (or its id),
 // and the site it went to. Reads the same per-request connections the tools resolve against.
 const describeWordPressCall: DescribeCall = (args, ctx) => {
   const connections = (ctx.http?.authInfo?.extra?.connections as WordPressConnection[] | undefined) ?? [];

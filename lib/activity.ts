@@ -7,7 +7,7 @@ import { rolledUpThrough } from "./plans/usage-rollup";
 import type { ActivityEvent } from "../payload-types";
 
 // The activity log (ACTIVITY_LOG_PLAN.md): what AI apps did through MCP tools, per
-// organisation. Writes come from lib/mcp-activity.ts after a tool call has responded;
+// organisation. Writes come from lib/mcp/logged-tool.ts after a tool call has responded;
 // reads are scoped here - an organisation admin sees every event, a member only their own.
 // Like lib/entitlements.ts this uses overrideAccess: true, so organisationId and the viewer
 // must already come from authenticated server-side context, never from a client value.
@@ -194,7 +194,7 @@ export async function countActivity(
 /**
  * Deletes events past the retention window (a raw bulk delete: the local API would load
  * every row it deletes), but never an event the usage rollup hasn't folded in yet
- * (lib/usage-rollup.ts) - the raw events are the only copy until then, so a failed or missed
+ * (lib/plans/usage-rollup.ts) - the raw events are the only copy until then, so a failed or missed
  * rollup delays the purge instead of losing history. Returns how many were removed. Run daily
  * by /api/cron/activity-cleanup, after the rollup.
  */

@@ -50,7 +50,7 @@ export interface OAuthProvider {
   refreshAccessToken(input: RefreshInput): Promise<TokenResponse>;
   revokeToken(token: string, clientId: string): Promise<void>;
 
-  // --- Resource server: every MCP request (lib/mcp-auth.ts) ---
+  // --- Resource server: every MCP request (lib/mcp/auth.ts) ---
   /** Null unless the token is valid, unexpired, issued for exactly this resource URL, and its grant still active. */
   verifyAccessToken(token: string, resourceUrl: string): Promise<VerifiedAccessToken | null>;
 

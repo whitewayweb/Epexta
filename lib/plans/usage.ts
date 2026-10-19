@@ -3,7 +3,7 @@ import { getPayloadClient } from "../payload";
 
 // The daily tool-call meter (PRICING_PLAN.md): one `usage_daily` row per organisation per UTC
 // day, counting the MCP tool calls that ran. Read by the plan page; written by
-// lib/mcp-activity.ts before each call runs. Like lib/activity.ts this uses
+// lib/mcp/logged-tool.ts before each call runs. Like lib/activity.ts this uses
 // overrideAccess/raw SQL, so organisationId must come from authenticated server-side context.
 
 /** Rows older than this are deleted by /api/cron/usage-cleanup. */

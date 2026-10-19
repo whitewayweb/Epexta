@@ -91,7 +91,7 @@ export const oauthEndpoints = {
 
   /**
    * GET /.well-known/oauth-protected-resource/<mcpPath> - RFC 9728 metadata for one MCP
-   * route, which its 401 points at (lib/mcp-auth.ts). `resource` must equal the URL a user
+   * route, which its 401 points at (lib/mcp/auth.ts). `resource` must equal the URL a user
    * pastes into Claude/ChatGPT exactly, so there is deliberately no root-level document:
    * one document can't name two routes. No `scopes_supported` - Epexta defines no scopes
    * yet, so clients request none.

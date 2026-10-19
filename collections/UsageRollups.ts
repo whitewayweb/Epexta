@@ -3,7 +3,7 @@ import { supportReadableAccess } from "../lib/collection-access";
 
 // The long-term record of what each organisation did through MCP tools: one row per
 // organisation, UTC day, module and tool, folded from the activity log by
-// lib/usage-rollup.ts before the raw events are purged (ACTIVITY_RETENTION_DAYS). Raw events
+// lib/plans/usage-rollup.ts before the raw events are purged (ACTIVITY_RETENTION_DAYS). Raw events
 // are for the feed and support; this is what usage history, reports and billing read, and
 // it is kept indefinitely - a few rows per organisation per active day, never per call.
 // Holds counts only. Written only by the rollup job (raw SQL, recomputed per day, so safe to

@@ -3,7 +3,7 @@ import { getPayloadClient } from "../payload";
 import { resolvePlan, type EffectivePlan } from "./definitions";
 
 /**
- * The plan this organisation is on right now (lib/plans.ts decides what that means for a
+ * The plan this organisation is on right now (lib/plans/definitions.ts decides what that means for a
  * missing, suspended, or expired record). Like lib/entitlements.ts this uses
  * overrideAccess: true, so organisationId must already come from authenticated server-side
  * context, never from a client value.

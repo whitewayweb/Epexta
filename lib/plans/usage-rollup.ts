@@ -7,7 +7,7 @@ import { USAGE_RANGES, type UsageRange } from "./usage-ranges";
 // are pruned after ACTIVITY_RETENTION_DAYS (lib/activity.ts); before that, the daily cron
 // folds every finished UTC day into one row per organisation, module and tool here, and
 // purgeExpiredActivity refuses to delete anything this hasn't folded in yet. Like the rest of
-// lib/usage*.ts this uses overrideAccess/raw SQL, so organisationId must come from
+// lib/plans/usage*.ts this uses overrideAccess/raw SQL, so organisationId must come from
 // authenticated server-side context.
 
 /** Days re-folded on every run, so events written just after midnight (logging runs after the response) are still counted. */

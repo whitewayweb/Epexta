@@ -79,7 +79,7 @@ export function withEpextaMcpAuth<TExtra extends Record<string, unknown>>(
         scopes: [],
         expiresAt: caller.expiresAt,
         resource: new URL(resource.url),
-        // `caller` rides along so lib/mcp-activity.ts can attribute each tool call; routes
+        // `caller` rides along so lib/mcp/logged-tool.ts can attribute each tool call; routes
         // read only their own keys from `extra`, so this is invisible to them.
         extra: { ...(await buildExtra(caller)), caller },
       };

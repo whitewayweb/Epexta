@@ -24,7 +24,7 @@ export const GRANT_MAX_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
 /** Throttle for the "last used" bookkeeping write on the grant (one write per window, not per request). */
 export const GRANT_LAST_USED_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 
-/** Opaque token type prefixes - lets lib/mcp-auth.ts route a bearer token to one lookup, not two. */
+/** Opaque token type prefixes - lets lib/mcp/auth.ts route a bearer token to one lookup, not two. */
 export const TOKEN_PREFIX = {
   access: "epx_at_",
   refresh: "epx_rt_",

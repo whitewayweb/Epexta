@@ -1,6 +1,6 @@
 // Epexta's plans (PRICING_PLAN.md): what each tier allows. Pure data and rules - no database
 // access - so collection configs can import it (collections/OrganisationPlans.ts) and the
-// resolution rules are unit-testable. lib/organisation-plan.ts is where a plan is read.
+// resolution rules are unit-testable. lib/plans/organisation-plan.ts is where a plan is read.
 //
 // Modules never see a plan name: they ask for limits (`maxSites`, `dailyToolCalls`) through
 // the helpers that enforce them, so billing and tiers can change without touching a module.
@@ -10,7 +10,7 @@ export interface PlanDefinition {
   name: string;
   /** WordPress sites an organisation may have connected, across all of its members. */
   maxSites: number;
-  /** MCP tool calls per organisation per UTC day (lib/usage.ts). */
+  /** MCP tool calls per organisation per UTC day (lib/plans/usage.ts). */
   dailyToolCalls: number;
 }
 

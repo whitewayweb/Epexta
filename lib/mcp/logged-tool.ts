@@ -35,7 +35,7 @@ function callerOf(ctx: ServerContext): McpCaller | undefined {
 }
 
 /**
- * Counts this call against the organisation's daily allowance (lib/usage.ts), returning the
+ * Counts this call against the organisation's daily allowance (lib/plans/usage.ts), returning the
  * refusal to send back when it is used up. Metering is fair-use, not security: if it can't
  * be read the call goes ahead rather than failing every tool for a bookkeeping problem.
  */
