@@ -165,8 +165,7 @@ export async function createWordPressConnection(
   userId: string,
   data: WordPressConnectionInput
 ): Promise<void> {
-  const plan = await getOrganisationPlan(organisationId);
-  const sites = await listWordPressSiteUrls(organisationId);
+  const [plan, sites] = await Promise.all([getOrganisationPlan(organisationId), listWordPressSiteUrls(organisationId)]);
   const siteKey = data.siteUrl.toLowerCase();
   const isNewSite = !sites.has(siteKey);
   if (isNewSite && sites.size >= plan.maxSites) throw new PlanLimitError("sites", plan);
