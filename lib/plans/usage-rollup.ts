@@ -51,7 +51,7 @@ export async function rollUpActivity(now: Date = new Date()): Promise<number> {
       to_char("created_at" AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
       "module"::text,
       "tool",
-      "kind"::text,
+      max("kind"::text),
       count(*),
       count(*) FILTER (WHERE "outcome" = 'failure'),
       count(*) FILTER (WHERE "error_code" = 'plan_limit'),
@@ -59,7 +59,7 @@ export async function rollUpActivity(now: Date = new Date()): Promise<number> {
       now()
     FROM "activity_events"
     WHERE "created_at" >= ${from}::timestamptz AND "created_at" < ${to}::timestamptz
-    GROUP BY 1, 2, 3, 4, 5
+    GROUP BY 1, 2, 3, 4
     ON CONFLICT ("organisation_id", "day", "module", "tool") DO UPDATE SET
       "kind" = EXCLUDED."kind",
       "calls" = EXCLUDED."calls",

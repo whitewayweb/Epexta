@@ -156,3 +156,53 @@ describe("usage rollup", () => {
     expect(parseUsageRange(undefined)).toBe(DEFAULT_USAGE_RANGE);
   });
 });
+
+describe("usage rollup when a tool's kind changed within one day", () => {
+  it("folds both kinds into one row instead of failing the upsert", async () => {
+    const suffix = randomUUID();
+    const payload = await getPayloadClient();
+    const user = await payload.create({
+      collection: "users",
+      data: { email: `rollup-kind-${suffix}@example.com`, password: "test-password-123", role: "customer" },
+    });
+    const org = await payload.create({
+      collection: "organisations",
+      data: { name: `rollup-kind-${suffix}`, members: [{ user: user.id, role: "admin" }] },
+      overrideAccess: true,
+    });
+
+    try {
+      for (const kind of ["update", "create"] as const) {
+        await payload.create({
+          collection: "activity-events",
+          data: {
+            organisation: org.id,
+            user: user.id,
+            module: "wordpress",
+            tool: "kind_flip",
+            kind,
+            outcome: "success",
+            summary: `kind_flip ${suffix}`,
+            source: "api-key",
+            createdAt: daysAgo(2).toISOString(),
+          },
+          overrideAccess: true,
+        });
+      }
+
+      await expect(rollUpActivity()).resolves.toBeGreaterThanOrEqual(1);
+
+      const rows = await payload.find({
+        collection: "usage-rollups",
+        where: { organisation: { equals: org.id } },
+        limit: 0,
+        overrideAccess: true,
+      });
+      expect(rows.docs).toHaveLength(1);
+      expect(Number(rows.docs[0].calls)).toBe(2);
+    } finally {
+      await payload.delete({ collection: "organisations", id: org.id, overrideAccess: true }).catch(() => {});
+      await payload.delete({ collection: "users", id: user.id, overrideAccess: true }).catch(() => {});
+    }
+  });
+});
