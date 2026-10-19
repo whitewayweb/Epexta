@@ -47,7 +47,10 @@ export interface EffectivePlan {
 }
 
 function definitionOf(slug: PlanSlug): (typeof PLANS)[number] {
-  return PLANS.find((plan) => plan.slug === slug) ?? PLANS.find((plan) => plan.slug === DEFAULT_PLAN)!;
+  return (
+    PLANS.find((plan) => plan.slug === slug) ??
+    PLANS.find((plan) => plan.slug === DEFAULT_PLAN)!
+  );
 }
 
 /**
@@ -56,11 +59,15 @@ function definitionOf(slug: PlanSlug): (typeof PLANS)[number] {
  * a cron job having noticed the change - it takes effect on the next request. Limits apply
  * to what an organisation can add or use from now on; nothing it already has is removed.
  */
-export function resolvePlan(record: PlanRecord | null | undefined, now: Date = new Date()): EffectivePlan {
+export function resolvePlan(
+  record: PlanRecord | null | undefined,
+  now: Date = new Date(),
+): EffectivePlan {
   const lapsed =
     !record ||
     record.status !== "active" ||
-    (record.currentPeriodEnd != null && new Date(record.currentPeriodEnd).getTime() <= now.getTime());
+    (record.currentPeriodEnd != null &&
+      new Date(record.currentPeriodEnd).getTime() <= now.getTime());
 
   if (lapsed) {
     const { slug, name, maxSites, dailyToolCalls } = definitionOf(DEFAULT_PLAN);
@@ -83,12 +90,14 @@ export function resolvePlan(record: PlanRecord | null | undefined, now: Date = n
 export class PlanLimitError extends Error {
   constructor(
     readonly limit: "sites" | "toolCalls",
-    plan: EffectivePlan
+    plan: EffectivePlan,
   ) {
     super(
       limit === "sites"
         ? `Your ${plan.name} plan includes ${plan.maxSites} connected ${plan.maxSites === 1 ? "site" : "sites"}, and you've reached that limit. Upgrade your plan in Epexta to connect more.`
-        : `Your organisation has used all ${plan.dailyToolCalls.toLocaleString("en-US")} daily tool calls included in the ${plan.name} plan. The allowance resets at 00:00 UTC; upgrade your plan in Epexta for more.`
+        : plan.dailyToolCalls < 1
+          ? `Your ${plan.name} plan doesn't currently include any tool calls. Contact Epexta support or change your plan in Epexta to use them.`
+          : `Your organisation has used all ${plan.dailyToolCalls.toLocaleString("en-US")} daily tool calls included in the ${plan.name} plan. The allowance resets at 00:00 UTC; upgrade your plan in Epexta for more.`,
     );
     this.name = "PlanLimitError";
   }

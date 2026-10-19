@@ -50,4 +50,11 @@ describe("PlanLimitError", () => {
     expect(message).toContain("5,000 daily tool calls");
     expect(message).toContain("00:00 UTC");
   });
+
+  it("doesn't claim a used-up allowance when the plan has none", () => {
+    const plan = resolvePlan({ plan: "pro", status: "active", dailyToolCallsOverride: 0 }, now);
+    const message = new PlanLimitError("toolCalls", plan).message;
+    expect(message).toContain("doesn't currently include any tool calls");
+    expect(message).not.toContain("00:00 UTC");
+  });
 });
