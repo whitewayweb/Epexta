@@ -1,6 +1,4 @@
-import type { Where } from "payload";
 import { executeSql, sql } from "../db-sql";
-import { getPayloadClient } from "../payload";
 import { USAGE_RANGES, type UsageRange } from "./usage-ranges";
 
 // The long-term usage history (collections/UsageRollups.ts). Raw events in the activity log
@@ -100,39 +98,25 @@ export interface UsageHistory {
 export async function getUsageHistory(organisationId: string, range: UsageRange, now: Date = new Date()): Promise<UsageHistory> {
   const rangeDays = USAGE_RANGES[range];
   const to = utcDay(new Date(now.getTime() - DAY_MS));
-  const conditions: Where[] = [{ organisation: { equals: organisationId } }, { day: { less_than_equal: to } }];
-  if (rangeDays) conditions.push({ day: { greater_than_equal: utcDay(new Date(now.getTime() - rangeDays * DAY_MS)) } });
+  const from = rangeDays ? utcDay(new Date(now.getTime() - rangeDays * DAY_MS)) : null;
+  // Totalled in the database: rollups are kept forever, so a long range must not load every row.
+  const window = sql`"organisation_id" = ${Number(organisationId)} AND "day" <= ${to} AND (${from}::text IS NULL OR "day" >= ${from})`;
 
-  const payload = await getPayloadClient();
-  const result = await payload.find({
-    collection: "usage-rollups",
-    where: { and: conditions },
-    select: { day: true, module: true, tool: true, calls: true, failures: true },
-    sort: "day",
-    depth: 0,
-    limit: 0,
-    pagination: false,
-    overrideAccess: true,
-  });
+  const [dayRows, toolRows] = await Promise.all([
+    executeSql<{ day: string; calls: number; failures: number }>(sql`
+      SELECT "day", sum("calls")::int AS "calls", sum("failures")::int AS "failures"
+      FROM "usage_rollups" WHERE ${window} GROUP BY "day"
+    `),
+    executeSql<{ module: string; tool: string; calls: number; failures: number }>(sql`
+      SELECT "module", "tool", sum("calls")::int AS "calls", sum("failures")::int AS "failures"
+      FROM "usage_rollups" WHERE ${window} GROUP BY "module", "tool"
+    `),
+  ]);
 
-  const byDay = new Map<string, { calls: number; failures: number }>();
-  const byTool = new Map<string, UsageHistory["tools"][number]>();
-  for (const row of result.docs) {
-    const calls = Number(row.calls);
-    const failures = Number(row.failures);
-    const dayTotal = byDay.get(row.day) ?? { calls: 0, failures: 0 };
-    dayTotal.calls += calls;
-    dayTotal.failures += failures;
-    byDay.set(row.day, dayTotal);
+  const byDay = new Map(dayRows.rows.map((row) => [row.day, { calls: Number(row.calls), failures: Number(row.failures) }]));
+  const tools = toolRows.rows.map((row) => ({ module: row.module, tool: row.tool, calls: Number(row.calls), failures: Number(row.failures) }));
 
-    const key = `${row.module}:${row.tool}`;
-    const entry = byTool.get(key) ?? { module: row.module, tool: row.tool, calls: 0, failures: 0 };
-    entry.calls += calls;
-    entry.failures += failures;
-    byTool.set(key, entry);
-  }
-
-  const first = rangeDays ? utcDay(new Date(now.getTime() - rangeDays * DAY_MS)) : result.docs[0]?.day;
+  const first = from ?? [...byDay.keys()].sort()[0];
   const days: UsageHistory["days"] = [];
   if (first) {
     for (let t = new Date(startOfUtcDay(first)).getTime(); t <= new Date(startOfUtcDay(to)).getTime(); t += DAY_MS) {
@@ -147,6 +131,6 @@ export async function getUsageHistory(organisationId: string, range: UsageRange,
     calls: days.reduce((sum, d) => sum + d.calls, 0),
     failures: days.reduce((sum, d) => sum + d.failures, 0),
     days,
-    tools: [...byTool.values()].sort((a, b) => b.calls - a.calls),
+    tools: tools.sort((a, b) => b.calls - a.calls),
   };
 }
