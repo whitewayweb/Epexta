@@ -163,9 +163,8 @@ export async function createWordPressConnection(
 ): Promise<void> {
   const plan = await getOrganisationPlan(organisationId);
   const sites = await listWordPressSiteUrls(organisationId);
-  if (sites.size >= plan.maxSites && !sites.has(data.siteUrl.toLowerCase())) {
-    throw new PlanLimitError("sites", plan);
-  }
+  const isNewSite = !sites.has(data.siteUrl.toLowerCase());
+  if (isNewSite && sites.size >= plan.maxSites) throw new PlanLimitError("sites", plan);
 
   const payload = await getPayloadClient();
   const created = await payload.create({
@@ -174,7 +173,7 @@ export async function createWordPressConnection(
     overrideAccess: true,
   });
 
-  if ((await listWordPressSiteUrls(organisationId)).size > plan.maxSites) {
+  if (isNewSite && (await listWordPressSiteUrls(organisationId)).size > plan.maxSites) {
     await payload.delete({ collection: "wordpress-connections", id: created.id, overrideAccess: true });
     throw new PlanLimitError("sites", plan);
   }

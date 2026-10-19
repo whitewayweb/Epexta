@@ -365,6 +365,10 @@ describe("createWordPressConnection and the plan's site limit", () => {
     await payload.update({ collection: "organisation-plans", id: record.id, data: { status: "suspended" }, overrideAccess: true });
     expect((await listWordPressSiteUrls(second.organisationId)).size).toBe(2);
     await expect(createWordPressConnection(second.organisationId, second.userIds[0], site(3, suffix))).rejects.toBeInstanceOf(PlanLimitError);
+    // Over the limit after the downgrade, a colleague can still add credentials for a site already there.
+    await createWordPressConnection(second.organisationId, second.userIds[1], site(2, suffix));
+    const connections = await payload.find({ collection: "wordpress-connections", where: { organisation: { equals: second.organisationId } }, limit: 0, overrideAccess: true });
+    expect(connections.totalDocs).toBe(3);
 
     await second.cleanup();
   });
